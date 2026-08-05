@@ -1,0 +1,279 @@
+import 'dart:async';
+
+import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/domain/stock/stock_models.dart';
+import 'package:control_stok_celu/features/reservations/reservations_providers.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+class ReservationsScreen extends ConsumerStatefulWidget {
+  const ReservationsScreen({super.key});
+
+  @override
+  ConsumerState<ReservationsScreen> createState() => _ReservationsScreenState();
+}
+
+class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(reservationsStateProvider.notifier).load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    final notifier = ref.read(reservationsStateProvider.notifier);
+    notifier.setSearching();
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      notifier.setSearch(value);
+    });
+  }
+
+  Future<void> _openFilters() async {
+    final customers =
+        await ref.read(listCustomersUseCaseProvider)(includeInactive: true);
+    if (!mounted) {
+      return;
+    }
+    final state = ref.read(reservationsStateProvider);
+    ReservationStatusFilter status = state.query.status;
+    String? customerId = state.query.customerId;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  DropdownButtonFormField<ReservationStatusFilter>(
+                    initialValue: status,
+                    decoration: const InputDecoration(labelText: 'Estado'),
+                    items: const <DropdownMenuItem<ReservationStatusFilter>>[
+                      DropdownMenuItem(
+                          value: ReservationStatusFilter.all,
+                          child: Text('Todos')),
+                      DropdownMenuItem(
+                          value: ReservationStatusFilter.draft,
+                          child: Text('Draft')),
+                      DropdownMenuItem(
+                          value: ReservationStatusFilter.reserved,
+                          child: Text('Reserved')),
+                      DropdownMenuItem(
+                          value: ReservationStatusFilter.sold,
+                          child: Text('Sold')),
+                      DropdownMenuItem(
+                          value: ReservationStatusFilter.cancelled,
+                          child: Text('Cancelled')),
+                      DropdownMenuItem(
+                          value: ReservationStatusFilter.deleted,
+                          child: Text('Deleted')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setModalState(() => status = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String?>(
+                    initialValue: customerId,
+                    decoration: const InputDecoration(labelText: 'Cliente'),
+                    items: <DropdownMenuItem<String?>>[
+                      const DropdownMenuItem<String?>(
+                          value: null, child: Text('Todos')),
+                      ...customers.map(
+                        (customer) => DropdownMenuItem<String?>(
+                          value: customer.id,
+                          child: Text(customer.name),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        setModalState(() => customerId = value),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      final notifier =
+                          ref.read(reservationsStateProvider.notifier);
+                      await notifier.setCustomer(customerId);
+                      await notifier.setStatus(status);
+                    },
+                    child: const Text('Aplicar'),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(reservationsStateProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Reservas'),
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'Filtros',
+            onPressed: _openFilters,
+            icon: const Icon(Icons.tune),
+          ),
+        ],
+      ),
+      body: Column(
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                labelText: 'Buscar reserva',
+                hintText: 'Cliente o ID',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ),
+          if (state.isSearching)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 8),
+                  Text('Buscando...'),
+                ],
+              ),
+            ),
+          Expanded(child: _buildContent(state)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/reservations/new').then((value) {
+          if (value == true) {
+            ref.read(reservationsStateProvider.notifier).load();
+          }
+        }),
+        icon: const Icon(Icons.add),
+        label: const Text('Nueva reserva'),
+      ),
+    );
+  }
+
+  Widget _buildContent(ReservationsState state) {
+    if (state.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state.errorMessage != null && state.items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(state.errorMessage!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () =>
+                    ref.read(reservationsStateProvider.notifier).load(),
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (state.items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            (state.query.search ?? '').trim().isEmpty
+                ? 'No hay reservas para mostrar.'
+                : 'No encontramos reservas con esa búsqueda.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => ref.read(reservationsStateProvider.notifier).load(),
+      child: ListView.separated(
+        itemCount: state.items.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final reservation = state.items[index];
+          return ListTile(
+            title: Text(reservation.customerName ?? 'Sin cliente'),
+            subtitle: Text(
+              '${reservation.id} · ${reservation.status} · ${_formatDate(reservation.createdAt)}\n'
+              '${reservation.productCount} productos · ${reservation.unitsCount} unidades',
+            ),
+            trailing: Text(_formatMoney(reservation.totalCents)),
+            onTap: () =>
+                context.push('/reservations/${reservation.id}').then((value) {
+              if (value == true) {
+                ref.read(reservationsStateProvider.notifier).load();
+              }
+            }),
+          );
+        },
+      ),
+    );
+  }
+}
+
+String _formatMoney(int cents) {
+  final sign = cents < 0 ? '-' : '';
+  final absolute = cents.abs();
+  final major = absolute ~/ 100;
+  final minor = (absolute % 100).toString().padLeft(2, '0');
+  return '$sign\$$major.$minor';
+}
+
+String _formatDate(DateTime date) {
+  final local = date.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  return '$day/$month/${local.year}';
+}

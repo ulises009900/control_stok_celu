@@ -1,0 +1,263 @@
+import 'package:control_stok_celu/data/db/app_database.dart';
+import 'package:control_stok_celu/data/repositories/drift_stock_repository.dart';
+import 'package:control_stok_celu/domain/stock/stock_repository.dart';
+import 'package:control_stok_celu/domain/stock/stock_use_cases.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+final appDatabaseProvider = Provider<AppDatabase>((ref) {
+  final db = AppDatabase();
+  ref.onDispose(db.close);
+  return db;
+});
+
+final stockRepositoryProvider = Provider<StockRepository>((ref) {
+  return DriftStockRepository(ref.watch(appDatabaseProvider));
+});
+
+final createProductUseCaseProvider = Provider<CreateProductUseCase>((ref) {
+  return CreateProductUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createProductProfileUseCaseProvider =
+    Provider<CreateProductProfileUseCase>((ref) {
+  return CreateProductProfileUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final updateProductProfileUseCaseProvider =
+    Provider<UpdateProductProfileUseCase>((ref) {
+  return UpdateProductProfileUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final setProductActiveUseCaseProvider =
+    Provider<SetProductActiveUseCase>((ref) {
+  return SetProductActiveUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final logicalDeleteProductUseCaseProvider =
+    Provider<LogicalDeleteProductUseCase>((ref) {
+  return LogicalDeleteProductUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final listProductsUseCaseProvider = Provider<ListProductsUseCase>((ref) {
+  return ListProductsUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final getInventorySummaryUseCaseProvider =
+    Provider<GetInventorySummaryUseCase>((ref) {
+  return GetInventorySummaryUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final listInventoryUseCaseProvider = Provider<ListInventoryUseCase>((ref) {
+  return ListInventoryUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final getProductDetailUseCaseProvider =
+    Provider<GetProductDetailUseCase>((ref) {
+  return GetProductDetailUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createCategoryUseCaseProvider = Provider<CreateCategoryUseCase>((ref) {
+  return CreateCategoryUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final updateCategoryUseCaseProvider = Provider<UpdateCategoryUseCase>((ref) {
+  return UpdateCategoryUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final setCategoryActiveUseCaseProvider =
+    Provider<SetCategoryActiveUseCase>((ref) {
+  return SetCategoryActiveUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final listCategoriesUseCaseProvider = Provider<ListCategoriesUseCase>((ref) {
+  return ListCategoriesUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createSupplierUseCaseProvider = Provider<CreateSupplierUseCase>((ref) {
+  return CreateSupplierUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final updateSupplierUseCaseProvider = Provider<UpdateSupplierUseCase>((ref) {
+  return UpdateSupplierUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final setSupplierActiveUseCaseProvider =
+    Provider<SetSupplierActiveUseCase>((ref) {
+  return SetSupplierActiveUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final listSuppliersUseCaseProvider = Provider<ListSuppliersUseCase>((ref) {
+  return ListSuppliersUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final getSupplierDetailUseCaseProvider =
+    Provider<GetSupplierDetailUseCase>((ref) {
+  return GetSupplierDetailUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createCustomerUseCaseProvider = Provider<CreateCustomerUseCase>((ref) {
+  return CreateCustomerUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final updateCustomerUseCaseProvider = Provider<UpdateCustomerUseCase>((ref) {
+  return UpdateCustomerUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final setCustomerActiveUseCaseProvider =
+    Provider<SetCustomerActiveUseCase>((ref) {
+  return SetCustomerActiveUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final listCustomersUseCaseProvider = Provider<ListCustomersUseCase>((ref) {
+  return ListCustomersUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createReservationDraftUseCaseProvider =
+    Provider<CreateReservationDraftUseCase>((ref) {
+  return CreateReservationDraftUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final saveReservationDraftUseCaseProvider =
+    Provider<SaveReservationDraftUseCase>((ref) {
+  return SaveReservationDraftUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final saveSaleDraftUseCaseProvider = Provider<SaveSaleDraftUseCase>((ref) {
+  return SaveSaleDraftUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final deleteSaleDraftUseCaseProvider = Provider<DeleteSaleDraftUseCase>((ref) {
+  return DeleteSaleDraftUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final reserveSaleDraftUseCaseProvider =
+    Provider<ReserveSaleDraftUseCase>((ref) {
+  return ReserveSaleDraftUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final confirmSaleDraftUseCaseProvider =
+    Provider<ConfirmSaleDraftUseCase>((ref) {
+  return ConfirmSaleDraftUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final listSalesUseCaseProvider = Provider<ListSalesUseCase>((ref) {
+  return ListSalesUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final getSaleDetailUseCaseProvider = Provider<GetSaleDetailUseCase>((ref) {
+  return GetSaleDetailUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final listReservationsUseCaseProvider =
+    Provider<ListReservationsUseCase>((ref) {
+  return ListReservationsUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final getReservationDetailUseCaseProvider =
+    Provider<GetReservationDetailUseCase>((ref) {
+  return GetReservationDetailUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final getCustomerDetailUseCaseProvider =
+    Provider<GetCustomerDetailUseCase>((ref) {
+  return GetCustomerDetailUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final reserveDraftReservationUseCaseProvider =
+    Provider<ReserveDraftReservationUseCase>((ref) {
+  return ReserveDraftReservationUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final deleteReservationUseCaseProvider =
+    Provider<DeleteReservationUseCase>((ref) {
+  return DeleteReservationUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final confirmDraftReservationSaleUseCaseProvider =
+    Provider<ConfirmDraftReservationSaleUseCase>((ref) {
+  return ConfirmDraftReservationSaleUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final receiveStockUseCaseProvider = Provider<ReceiveStockUseCase>((ref) {
+  return ReceiveStockUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final adjustStockUseCaseProvider = Provider<AdjustStockUseCase>((ref) {
+  return AdjustStockUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createReservationUseCaseProvider =
+    Provider<CreateReservationUseCase>((ref) {
+  return CreateReservationUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final cancelReservationUseCaseProvider =
+    Provider<CancelReservationUseCase>((ref) {
+  return CancelReservationUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final confirmReservationSaleUseCaseProvider =
+    Provider<ConfirmReservationSaleUseCase>((ref) {
+  return ConfirmReservationSaleUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createDirectSaleUseCaseProvider =
+    Provider<CreateDirectSaleUseCase>((ref) {
+  return CreateDirectSaleUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createReturnUseCaseProvider = Provider<CreateReturnUseCase>((ref) {
+  return CreateReturnUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createExpenseCategoryUseCaseProvider =
+    Provider<CreateExpenseCategoryUseCase>((ref) {
+  return CreateExpenseCategoryUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final updateExpenseCategoryUseCaseProvider =
+    Provider<UpdateExpenseCategoryUseCase>((ref) {
+  return UpdateExpenseCategoryUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final setExpenseCategoryActiveUseCaseProvider =
+    Provider<SetExpenseCategoryActiveUseCase>((ref) {
+  return SetExpenseCategoryActiveUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final listExpenseCategoriesUseCaseProvider =
+    Provider<ListExpenseCategoriesUseCase>((ref) {
+  return ListExpenseCategoriesUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final createExpenseUseCaseProvider = Provider<CreateExpenseUseCase>((ref) {
+  return CreateExpenseUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final updateExpenseUseCaseProvider = Provider<UpdateExpenseUseCase>((ref) {
+  return UpdateExpenseUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final logicalDeleteExpenseUseCaseProvider =
+    Provider<LogicalDeleteExpenseUseCase>((ref) {
+  return LogicalDeleteExpenseUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final listExpensesUseCaseProvider = Provider<ListExpensesUseCase>((ref) {
+  return ListExpensesUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final getExpenseDetailUseCaseProvider =
+    Provider<GetExpenseDetailUseCase>((ref) {
+  return GetExpenseDetailUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final getExpenseSummaryUseCaseProvider =
+    Provider<GetExpenseSummaryUseCase>((ref) {
+  return GetExpenseSummaryUseCase(ref.watch(stockRepositoryProvider));
+});
+
+final getDashboardSummaryUseCaseProvider =
+    Provider<GetDashboardSummaryUseCase>((ref) {
+  return GetDashboardSummaryUseCase(ref.watch(stockRepositoryProvider));
+});
