@@ -118,6 +118,19 @@ void main() {
     await db.close();
   });
 
+  testWidgets('sale form shows highlighted total cost summary',
+      (WidgetTester tester) async {
+    final db = AppDatabase(executor: NativeDatabase.memory());
+    await pumpApp(tester, db);
+
+    GoRouter.of(tester.element(find.byType(HomeScreen))).go('/sales/new');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Costo total'), findsOneWidget);
+
+    await db.close();
+  });
+
   testWidgets('notes, tasks, settings and reports render',
       (WidgetTester tester) async {
     final db = AppDatabase(executor: NativeDatabase.memory());

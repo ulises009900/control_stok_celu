@@ -28,11 +28,97 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
     super.dispose();
   }
 
+  Future<void> _generateReport() async {
+    final reportText = await _buildReportText();
+    if (!mounted) {
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Reporte generado'),
+          content: SingleChildScrollView(child: Text(reportText)),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<String> _buildReportText() async {
+    final periodLabel = switch (_period) {
+      DashboardPeriod.today => 'Hoy',
+      DashboardPeriod.last7Days => 'Últimos 7 días',
+      DashboardPeriod.thisMonth => 'Este mes',
+      DashboardPeriod.previousMonth => 'Mes anterior',
+      DashboardPeriod.thisYear => 'Este año',
+      DashboardPeriod.thisWeek => 'Esta semana',
+      DashboardPeriod.custom => 'Personalizado',
+    };
+
+    switch (_tabController.index) {
+      case 0:
+        final snapshot = await ref.read(getDashboardSummaryUseCaseProvider)(
+          DashboardQuery(period: _period),
+        );
+        return '''Reporte de ventas
+Período: $periodLabel
+Cantidad: ${snapshot.salesCount}
+Facturación: ${_money(snapshot.revenueCents)}
+IVA: ${_money(snapshot.taxCents)}
+Costos: ${_money(snapshot.costCents)}
+Ganancia: ${_money(snapshot.netProfitCents)}''';
+      case 1:
+        final expensePeriod = _period == DashboardPeriod.today
+            ? ExpensePeriod.today
+            : _period == DashboardPeriod.previousMonth
+                ? ExpensePeriod.previousMonth
+                : _period == DashboardPeriod.last7Days
+                    ? ExpensePeriod.thisWeek
+                    : ExpensePeriod.thisMonth;
+        final snapshot = await ref.read(getExpenseSummaryUseCaseProvider)(
+          ExpenseQuery(period: expensePeriod),
+        );
+        return '''Reporte de gastos
+Período: $periodLabel
+Cantidad: ${snapshot.count}
+Total: ${_money(snapshot.totalAmountCents)}''';
+      case 2:
+        final snapshot = await ref.read(getInventorySummaryUseCaseProvider)(
+          const InventoryQuery(),
+        );
+        return '''Reporte de inventario
+Período: $periodLabel
+Productos: ${snapshot.totalProducts}
+Sin stock: ${snapshot.noStockCount}
+Stock bajo: ${snapshot.lowStockCount}
+Próximos a vencer: ${snapshot.nearExpiryCount}
+Vencidos: ${snapshot.expiredCount}
+Sobre stock: ${snapshot.overStockCount}''';
+      default:
+        return '''Reporte general
+Período: $periodLabel
+Se generó desde la vista activa del módulo.''';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reportes operativos'),
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'Generar reporte',
+            onPressed: _generateReport,
+            icon: const Icon(Icons.print_outlined),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,

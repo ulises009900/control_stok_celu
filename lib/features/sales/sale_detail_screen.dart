@@ -99,6 +99,10 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
           }
           final detail = snapshot.data!;
           final sale = detail.sale;
+          final totalCostCents = detail.lines.fold<int>(
+            0,
+            (sum, line) => sum + (line.unitCostCents * line.quantity),
+          );
           return ListView(
             padding: const EdgeInsets.all(16),
             children: <Widget>[

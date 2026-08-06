@@ -3256,11 +3256,37 @@ class DriftStockRepository implements StockRepository {
         .write(ExpenseCategoriesCompanion(isActive: Value(isActive)));
   }
 
+  Future<void> _ensureDefaultExpenseCategories() async {
+    final existing = await (_db.select(_db.expenseCategories)).get();
+    final existingNames =
+        existing.map((item) => item.name.trim().toLowerCase()).toSet();
+
+    for (final category in <({String id, String name})>[
+      (id: 'uncategorized', name: 'Sin categoría'),
+      (id: 'services', name: 'Servicios'),
+      (id: 'transport', name: 'Transporte'),
+      (id: 'supplies', name: 'Suministros'),
+      (id: 'maintenance', name: 'Mantenimiento'),
+      (id: 'marketing', name: 'Marketing'),
+    ]) {
+      if (!existingNames.contains(category.name.toLowerCase())) {
+        await _db.into(_db.expenseCategories).insert(
+              ExpenseCategoriesCompanion.insert(
+                id: category.id,
+                name: category.name,
+                isActive: const Value(true),
+              ),
+            );
+      }
+    }
+  }
+
   @override
   Future<List<ExpenseCategoryListItem>> listExpenseCategories({
     String? search,
     bool includeInactive = true,
   }) async {
+    await _ensureDefaultExpenseCategories();
     final where = <String>['1=1'];
     final values = <Object>[];
     if (!includeInactive) {

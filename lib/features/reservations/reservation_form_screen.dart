@@ -249,6 +249,7 @@ class _ReservationFormScreenState extends ConsumerState<ReservationFormScreen> {
     if (_loading) {
       return Scaffold(
         appBar: AppBar(
+            leading: Navigator.canPop(context) ? const BackButton() : null,
             title: Text(widget.isEdit ? 'Editar reserva' : 'Nueva reserva')),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -256,6 +257,7 @@ class _ReservationFormScreenState extends ConsumerState<ReservationFormScreen> {
     if (_error != null) {
       return Scaffold(
         appBar: AppBar(
+            leading: Navigator.canPop(context) ? const BackButton() : null,
             title: Text(widget.isEdit ? 'Editar reserva' : 'Nueva reserva')),
         body: Center(child: Text(_error!)),
       );
@@ -281,6 +283,7 @@ class _ReservationFormScreenState extends ConsumerState<ReservationFormScreen> {
         },
         child: Scaffold(
           appBar: AppBar(
+              leading: Navigator.canPop(context) ? const BackButton() : null,
               title: Text(widget.isEdit ? 'Editar reserva' : 'Nueva reserva')),
           body: ListView(
             padding: const EdgeInsets.all(16),

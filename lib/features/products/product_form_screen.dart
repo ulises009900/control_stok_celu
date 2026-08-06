@@ -224,6 +224,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
+            leading: Navigator.canPop(context) ? const BackButton() : null,
             title: Text(widget.isEdit ? 'Editar producto' : 'Nuevo producto')),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -388,7 +389,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         onChanged: (_) => setState(() {}),
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
-                        decoration: const InputDecoration(labelText: 'Costo'),
+                        decoration:
+                            const InputDecoration(labelText: 'Costo total'),
                         validator: _validateNonNegativeMoney,
                       ),
                       TextFormField(

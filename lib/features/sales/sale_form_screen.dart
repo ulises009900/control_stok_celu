@@ -311,15 +311,17 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar:
-            AppBar(title: Text(widget.isEdit ? 'Editar venta' : 'Nueva venta')),
+        appBar: AppBar(
+            leading: Navigator.canPop(context) ? const BackButton() : null,
+            title: Text(widget.isEdit ? 'Editar venta' : 'Nueva venta')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
     if (_error != null) {
       return Scaffold(
-        appBar:
-            AppBar(title: Text(widget.isEdit ? 'Editar venta' : 'Nueva venta')),
+        appBar: AppBar(
+            leading: Navigator.canPop(context) ? const BackButton() : null,
+            title: Text(widget.isEdit ? 'Editar venta' : 'Nueva venta')),
         body: Center(child: Text(_error!)),
       );
     }
@@ -346,6 +348,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
         },
         child: Scaffold(
           appBar: AppBar(
+              leading: Navigator.canPop(context) ? const BackButton() : null,
               title: Text(widget.isEdit ? 'Editar venta' : 'Nueva venta')),
           body: ListView(
             padding: const EdgeInsets.all(16),
@@ -382,9 +385,22 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                   (line) => Card(
                     child: ListTile(
                       title: Text(line.productName),
-                      subtitle: Text(
-                        '${line.productCode} · Cantidad: ${line.quantity} · IVA: ${bpsToPercentText(line.taxRateBps)}%\n'
-                        'Unitario: ${_formatMoney(line.unitPriceCents)} · Descuento: ${bpsToPercentText(line.discountRateBps)}% · Total: ${_formatMoney(line.totalCents)}',
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '${line.productCode} · Cantidad: ${line.quantity} · IVA: ${bpsToPercentText(line.taxRateBps)}%\n'
+                            'Unitario: ${_formatMoney(line.unitPriceCents)} · Descuento: ${bpsToPercentText(line.discountRateBps)}% · Total: ${_formatMoney(line.totalCents)}',
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Costo total: ${_formatMoney(line.totalCostCents)}',
+                            style: TextStyle(
+                              color: Colors.deepOrange.shade700,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                       trailing: PopupMenuButton<String>(
                         onSelected: (value) {
@@ -425,7 +441,11 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                       0, (sum, line) => sum + line.discountCents))),
               _SummaryRow(label: 'IVA', value: _formatMoney(tax)),
               _SummaryRow(label: 'Total a cobrar', value: _formatMoney(total)),
-              _SummaryRow(label: 'Costo', value: _formatMoney(cost)),
+              _SummaryRow(
+                label: 'Costo total',
+                value: _formatMoney(cost),
+                highlight: true,
+              ),
               _SummaryRow(label: 'Ganancia', value: _formatMoney(profit)),
               const SizedBox(height: 16),
               FilledButton.icon(
@@ -529,19 +549,42 @@ int _discountCentsToRateBps(int discountCents, SaleLineView line) {
 }
 
 class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({required this.label, required this.value});
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.highlight = false,
+  });
 
   final String label;
   final String value;
+  final bool highlight;
 
   @override
   Widget build(BuildContext context) {
+    final accentColor = highlight ? Colors.deepOrange.shade700 : null;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: <Widget>[
-          Expanded(child: Text(label)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Expanded(
+            child: Text(
+              label,
+              style: highlight
+                  ? TextStyle(
+                      color: accentColor,
+                      fontWeight: FontWeight.w700,
+                    )
+                  : null,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: accentColor,
+            ),
+          ),
         ],
       ),
     );

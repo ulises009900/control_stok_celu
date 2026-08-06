@@ -84,7 +84,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     final descriptionController =
         TextEditingController(text: current?.description ?? '');
     final amountController = TextEditingController(
-        text: current == null ? '' : '${current.amountCents / 100}');
+        text: current == null ? '' : '${current.amountCents.abs() / 100}');
     final notesController = TextEditingController(text: current?.notes ?? '');
     final occurredAtController = TextEditingController(
         text: current == null
@@ -92,6 +92,8 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
             : current.occurredAt.toIso8601String().split('T').first);
     String? categoryId;
     String? supplierId;
+    String entryType =
+        current != null && current.amountCents < 0 ? 'income' : 'expense';
     final categories = await ref.read(listExpenseCategoriesUseCaseProvider)(
         includeInactive: false);
     final suppliers =
@@ -100,6 +102,12 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     if (!mounted) {
       return;
     }
+
+    final defaultCategoryId = categories
+        .where((item) => item.name.toLowerCase() == 'sin categoría')
+        .map((item) => item.id)
+        .firstOrNull;
+    categoryId ??= current?.categoryId ?? defaultCategoryId;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -136,7 +144,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                                 : null,
                       ),
                       DropdownButtonFormField<String>(
-                        initialValue: categoryId ?? current?.categoryName,
+                        initialValue: categoryId ?? current?.categoryId,
                         decoration:
                             const InputDecoration(labelText: 'Categoría *'),
                         items: categories
@@ -148,6 +156,18 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                         validator: (value) => value == null || value.isEmpty
                             ? 'Seleccione una categoría.'
                             : null,
+                      ),
+                      DropdownButtonFormField<String>(
+                        initialValue: entryType,
+                        decoration: const InputDecoration(labelText: 'Tipo'),
+                        items: const <DropdownMenuItem<String>>[
+                          DropdownMenuItem<String>(
+                              value: 'expense', child: Text('Gasto')),
+                          DropdownMenuItem<String>(
+                              value: 'income', child: Text('Ingreso')),
+                        ],
+                        onChanged: (value) =>
+                            setModalState(() => entryType = value ?? 'expense'),
                       ),
                       TextFormField(
                         controller: amountController,
@@ -209,13 +229,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                                         .replaceAll(',', '.')) *
                                     100)
                                 .round());
+                            final signedAmountCents = entryType == 'income'
+                                ? -amountCents
+                                : amountCents;
                             final input = ExpenseUpsertInput(
                               id: current?.id ??
                                   'exp_${DateTime.now().microsecondsSinceEpoch}',
                               description: descriptionController.text.trim(),
                               categoryId:
-                                  categoryId ?? current?.categoryName ?? '',
-                              amountCents: amountCents,
+                                  categoryId ?? current?.categoryId ?? '',
+                              amountCents: signedAmountCents,
                               occurredAt: occurredAtController.text.trim(),
                               supplierId: supplierId,
                               notes: notesController.text.trim().isEmpty
@@ -373,7 +396,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                               return ListTile(
                                 title: Text(item.description),
                                 subtitle: Text(
-                                    '${item.categoryName} · ${_formatMoney(item.amountCents)}'),
+                                    '${item.categoryName} · ${item.amountCents < 0 ? 'Ingreso' : 'Gasto'} · ${_formatMoney(item.amountCents.abs())}'),
                                 trailing: PopupMenuButton<String>(
                                   onSelected: (value) {
                                     if (value == 'edit') {
