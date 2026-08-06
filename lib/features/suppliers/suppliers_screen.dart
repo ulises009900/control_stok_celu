@@ -105,6 +105,7 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Proveedores'),
         actions: <Widget>[
           IconButton(

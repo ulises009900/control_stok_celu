@@ -362,6 +362,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Productos'),
         actions: <Widget>[
           IconButton(

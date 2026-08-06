@@ -193,6 +193,7 @@ class _SupplierFormScreenState extends ConsumerState<SupplierFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: Text(widget.isEdit ? 'Editar proveedor' : 'Nuevo proveedor'),
       ),
       body: _loading

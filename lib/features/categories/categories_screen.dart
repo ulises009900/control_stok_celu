@@ -217,6 +217,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Categorías'),
         actions: <Widget>[
           IconButton(

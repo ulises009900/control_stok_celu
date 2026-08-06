@@ -114,6 +114,7 @@ class _CustomerFormScreenState extends ConsumerState<CustomerFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+          leading: Navigator.canPop(context) ? const BackButton() : null,
           title: Text(widget.isEdit ? 'Editar cliente' : 'Nuevo cliente')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())

@@ -127,7 +127,10 @@ class _ExpenseCategoryScreenState extends ConsumerState<ExpenseCategoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Categorías de gastos')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Categorías de gastos'),
+      ),
       body: Column(
         children: <Widget>[
           Padding(

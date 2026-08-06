@@ -141,7 +141,9 @@ class _ProductStockMovementPrepScreenState
     }
 
     final quantity = int.parse(_stockInQuantityController.text.trim());
-    final unitCost = int.parse(_stockInUnitCostController.text.trim());
+    final unitCostRaw = _stockInUnitCostController.text.trim();
+    final unitCost =
+        unitCostRaw.isEmpty ? detail.product.costCents : int.parse(unitCostRaw);
     final batchCode = _stockInBatchCodeController.text.trim();
     final notes = _stockInNotesController.text.trim();
     final supplierName = _suppliers
@@ -157,7 +159,7 @@ class _ProductStockMovementPrepScreenState
           content: Text(
             'Producto: ${detail.product.name}\n'
             'Cantidad: $quantity\n'
-            'Costo unitario: $unitCost\n'
+            'Costo unitario: $unitCost${unitCostRaw.isEmpty ? ' (se conserva el costo anterior)' : ''}\n'
             'Proveedor: ${supplierName ?? 'Sin proveedor'}\n'
             'Lote: ${batchCode.isEmpty ? 'Generado automáticamente' : batchCode}\n'
             'Vencimiento: ${_selectedExpiryDate == null ? 'Sin fecha' : _formatDate(_selectedExpiryDate!)}',
@@ -329,14 +331,20 @@ class _ProductStockMovementPrepScreenState
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Movimiento de stock')),
+        appBar: AppBar(
+          leading: Navigator.canPop(context) ? const BackButton() : null,
+          title: const Text('Movimiento de stock'),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_error != null || _detail == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Movimiento de stock')),
+        appBar: AppBar(
+          leading: Navigator.canPop(context) ? const BackButton() : null,
+          title: const Text('Movimiento de stock'),
+        ),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -361,7 +369,10 @@ class _ProductStockMovementPrepScreenState
         detail.batches.where((batch) => batch.quantityAvailable > 0).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Movimiento de stock')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Movimiento de stock'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
@@ -424,10 +435,15 @@ class _ProductStockMovementPrepScreenState
                     controller: _stockInUnitCostController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Costo unitario (centavos) *',
+                      labelText: 'Costo unitario (centavos, opcional)',
                     ),
-                    validator: (value) =>
-                        _validatePositiveInt(value, 'Costo unitario'),
+                    validator: (value) {
+                      final text = (value ?? '').trim();
+                      if (text.isEmpty) {
+                        return null;
+                      }
+                      return _validatePositiveInt(text, 'Costo unitario');
+                    },
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String?>(

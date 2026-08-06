@@ -111,6 +111,7 @@ Se generó desde la vista activa del módulo.''';
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Reportes operativos'),
         actions: <Widget>[
           IconButton(

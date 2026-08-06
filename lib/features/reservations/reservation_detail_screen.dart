@@ -120,7 +120,10 @@ class _ReservationDetailScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalle de reserva')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Detalle de reserva'),
+      ),
       body: FutureBuilder<ReservationDetailView>(
         future: _future,
         builder: (context, snapshot) {

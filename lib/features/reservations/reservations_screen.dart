@@ -134,6 +134,7 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Reservas'),
         actions: <Widget>[
           IconButton(

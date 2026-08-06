@@ -22,7 +22,10 @@ class HomeScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Inicio')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Inicio'),
+      ),
       body: GridView.builder(
         padding: const EdgeInsets.all(16),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -37,7 +40,7 @@ class HomeScreen extends StatelessWidget {
           return Card(
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => context.go(item.route),
+              onTap: () => context.push(item.route),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(

@@ -199,7 +199,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Notas')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Notas'),
+      ),
       body: Column(
         children: <Widget>[
           Padding(

@@ -1,10 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/data/db/app_database.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -49,7 +53,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         values['business_name'] as String? ?? 'Control Stok Celu';
     _currencyController.text = values['currency_symbol'] as String? ?? '\$';
     _defaultTaxController.text =
-        (values['default_tax_bps'] as int? ?? 2100).toString();
+        bpsToPercentText(values['default_tax_bps'] as int? ?? 2100);
     _nearExpiryDaysController.text =
         (values['near_expiry_days'] as int? ?? 30).toString();
     if (mounted) {
@@ -70,7 +74,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ? '\$'
               : _currencyController.text.trim()),
       MapEntry<String, Object>('default_tax_bps',
-          int.tryParse(_defaultTaxController.text.trim()) ?? 2100),
+          percentToBps(_defaultTaxController.text.trim(), fallbackBps: 2100)),
       MapEntry<String, Object>('near_expiry_days',
           int.tryParse(_nearExpiryDaysController.text.trim()) ?? 30),
     ];
@@ -186,10 +190,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _createBackupInBacaps() async {
+    final docsDirectory = await getApplicationDocumentsDirectory();
+    final backupsDirectory = Directory(p.join(docsDirectory.path, 'bacaps'));
+    final service = ref.read(localBackupServiceProvider);
+    try {
+      final backup = await service.exportBackupToDirectory(
+        directoryPath: backupsDirectory.path,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _backupStatus = backup.filePath);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Backup guardado en ${backup.filePath}'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo crear el backup. $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Configuración')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Configuración'),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -207,9 +241,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 TextField(
                   controller: _defaultTaxController,
-                  keyboardType: TextInputType.number,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration:
-                      const InputDecoration(labelText: 'IVA por defecto (bps)'),
+                      const InputDecoration(labelText: 'IVA por defecto (%)'),
                 ),
                 TextField(
                   controller: _nearExpiryDaysController,
@@ -221,6 +256,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Text(
                   'Backup local',
                   style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                FilledButton.tonalIcon(
+                  onPressed: _createBackupInBacaps,
+                  icon: const Icon(Icons.folder_copy_outlined),
+                  label: const Text('Crear backup en carpeta bacaps'),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(

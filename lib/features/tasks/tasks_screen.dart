@@ -32,6 +32,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Tareas'),
         bottom: TabBar(
           controller: _tabController,

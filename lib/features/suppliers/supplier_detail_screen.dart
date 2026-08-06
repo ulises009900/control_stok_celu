@@ -87,6 +87,7 @@ class _SupplierDetailScreenState extends ConsumerState<SupplierDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Detalle proveedor'),
         actions: <Widget>[
           IconButton(

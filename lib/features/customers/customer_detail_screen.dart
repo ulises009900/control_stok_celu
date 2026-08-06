@@ -31,6 +31,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Detalle cliente'),
         actions: <Widget>[
           IconButton(

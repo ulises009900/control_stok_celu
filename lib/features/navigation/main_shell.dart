@@ -34,7 +34,12 @@ class MainShell extends StatelessWidget {
     final _NavItem item = _items[index];
     final bool showShell = index != 1 && index != 6;
     return Scaffold(
-      appBar: showShell ? AppBar(title: Text(item.label)) : null,
+      appBar: showShell
+          ? AppBar(
+              leading: Navigator.canPop(context) ? const BackButton() : null,
+              title: Text(item.label),
+            )
+          : null,
       body: index == 1
           ? InventoryScreen(
               initialFilter: inventoryFilter,

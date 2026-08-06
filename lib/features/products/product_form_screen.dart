@@ -41,6 +41,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       TextEditingController(text: '0.00');
   final TextEditingController _salePriceController =
       TextEditingController(text: '0.00');
+  final TextEditingController _profitPercentController =
+      TextEditingController();
   final TextEditingController _taxController = TextEditingController(text: '0');
   final TextEditingController _discountController =
       TextEditingController(text: '0');
@@ -59,10 +61,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   String? _barcodeInlineError;
   String? _categoryInlineError;
   bool _dirty = false;
+  bool _suspendDirtyTracking = false;
 
   @override
   void initState() {
     super.initState();
+    _attachDirtyListeners();
     _load();
   }
 
@@ -83,6 +87,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _locationController.dispose();
     _costController.dispose();
     _salePriceController.dispose();
+    _profitPercentController.dispose();
     _taxController.dispose();
     _discountController.dispose();
     _supplierController.dispose();
@@ -99,6 +104,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     try {
       _categories =
           await ref.read(listCategoriesUseCaseProvider)(includeInactive: false);
+      _suspendDirtyTracking = true;
       if (widget.isEdit) {
         final detail =
             await ref.read(getProductDetailUseCaseProvider)(widget.productId!);
@@ -119,6 +125,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         _costController.text = _formatMoneyInput(detail.product.costCents);
         _salePriceController.text =
             _formatMoneyInput(detail.product.salePriceCents);
+        _profitPercentController.text = _buildProfitPercentText(
+          costCents: detail.product.costCents,
+          salePriceCents: detail.product.salePriceCents,
+        );
         _taxController.text = bpsToPercentText(detail.taxRateBps);
         _discountController.text = detail.defaultDiscountBps.toString();
         _supplierController.text = detail.supplierId ?? '';
@@ -127,10 +137,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         _offer = detail.product.isOffer;
         _clearance = detail.product.isClearance;
         _dirty = false;
+      } else {
+        _profitPercentController.text = '';
       }
     } catch (e) {
       _loadWarning = 'No pudimos cargar algunas opciones: $e';
     } finally {
+      _suspendDirtyTracking = false;
       if (mounted) {
         setState(() {
           _loading = false;
@@ -147,6 +160,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     setState(() {
       _saving = true;
     });
+
+    final costCents = _parseMoneyToCents(_costController.text.trim());
+    var salePriceCents = _parseMoneyToCents(_salePriceController.text.trim());
+    final desiredProfit = parsePercentage(_profitPercentController.text.trim());
+    if (desiredProfit != null) {
+      salePriceCents = ((costCents * (100 + desiredProfit)) / 100).round();
+    }
 
     final input = ProductUpsertInput(
       id: widget.productId ?? 'prd_${DateTime.now().microsecondsSinceEpoch}',
@@ -166,8 +186,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       stockMin: int.tryParse(_stockMinController.text.trim()) ?? 0,
       stockMax: int.tryParse(_stockMaxController.text.trim()),
       location: _readOptional(_locationController),
-      costCents: _parseMoneyToCents(_costController.text.trim()),
-      salePriceCents: _parseMoneyToCents(_salePriceController.text.trim()),
+      costCents: costCents,
+      salePriceCents: salePriceCents,
       taxRateBps: percentToBps(_taxController.text.trim()),
       defaultDiscountBps: int.tryParse(_discountController.text.trim()) ?? 0,
       isOffer: _offer,
@@ -393,7 +413,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       _sectionTitle('Precio y comercial'),
                       TextFormField(
                         controller: _costController,
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (_) {
+                          _recalculateSalePriceFromProfit();
+                          setState(() {
+                            _dirty = true;
+                          });
+                        },
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
                         decoration:
@@ -402,12 +427,27 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       ),
                       TextFormField(
                         controller: _salePriceController,
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (_) => setState(() => _dirty = true),
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
                         decoration:
                             const InputDecoration(labelText: 'Precio de venta'),
                         validator: _validateSalePrice,
+                      ),
+                      TextFormField(
+                        controller: _profitPercentController,
+                        onChanged: (_) {
+                          _recalculateSalePriceFromProfit();
+                          setState(() => _dirty = true);
+                        },
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Ganancia deseada (%)',
+                          helperText:
+                              'Si completas este campo, se calcula el precio de venta automáticamente.',
+                        ),
+                        validator: _validateProfitPercent,
                       ),
                       TextFormField(
                         controller: _taxController,
@@ -598,6 +638,75 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     return value.isEmpty ? null : value;
   }
 
+  void _attachDirtyListeners() {
+    final controllers = <TextEditingController>[
+      _nameController,
+      _internalCodeController,
+      _barcodeController,
+      _brandController,
+      _subcategoryController,
+      _descriptionController,
+      _characteristicsController,
+      _detailsController,
+      _unitController,
+      _unitsPerPackController,
+      _stockMinController,
+      _stockMaxController,
+      _locationController,
+      _costController,
+      _salePriceController,
+      _profitPercentController,
+      _taxController,
+      _discountController,
+      _supplierController,
+      _notesController,
+    ];
+
+    for (final controller in controllers) {
+      controller.addListener(_onAnyFieldChanged);
+    }
+  }
+
+  void _onAnyFieldChanged() {
+    if (_suspendDirtyTracking || _loading || _dirty || !mounted) {
+      return;
+    }
+    setState(() {
+      _dirty = true;
+    });
+  }
+
+  void _recalculateSalePriceFromProfit() {
+    final text = _profitPercentController.text.trim();
+    if (text.isEmpty) {
+      return;
+    }
+    final profitPercent = parsePercentage(text);
+    if (profitPercent == null || profitPercent < 0) {
+      return;
+    }
+    final costCents = _parseMoneyToCents(_costController.text.trim());
+    final salePriceCents = ((costCents * (100 + profitPercent)) / 100).round();
+    final calculated = _formatMoneyInput(salePriceCents);
+    if (_salePriceController.text == calculated) {
+      return;
+    }
+    _suspendDirtyTracking = true;
+    _salePriceController.text = calculated;
+    _suspendDirtyTracking = false;
+  }
+
+  String _buildProfitPercentText({
+    required int costCents,
+    required int salePriceCents,
+  }) {
+    if (costCents <= 0) {
+      return '';
+    }
+    final profitPercent = ((salePriceCents - costCents) * 100) / costCents;
+    return profitPercent.toStringAsFixed(2);
+  }
+
   String? _validateNonNegativeInt(String? value) {
     final text = value?.trim() ?? '';
     if (text.isEmpty) {
@@ -650,6 +759,18 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     final parsed = parsePercentage(text);
     if (parsed == null || parsed < 0 || parsed > 100) {
       return 'Introduce un porcentaje de IVA válido.';
+    }
+    return null;
+  }
+
+  String? _validateProfitPercent(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) {
+      return null;
+    }
+    final parsed = parsePercentage(text);
+    if (parsed == null || parsed < 0) {
+      return 'Introduce un porcentaje de ganancia válido.';
     }
     return null;
   }

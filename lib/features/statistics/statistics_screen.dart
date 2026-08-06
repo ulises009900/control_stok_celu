@@ -171,7 +171,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                           _SectionCard(
                             title: 'Gastos',
                             actionLabel: 'Abrir gastos',
-                            onActionTap: () => context.go(
+                            onActionTap: () => context.push(
                               '/gastos?period=${_dashboardToExpensePeriodQuery(state.query.period)}',
                             ),
                             child: Column(
@@ -219,7 +219,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                           _SectionCard(
                             title: 'Inventario y vencimientos',
                             actionLabel: 'Abrir inventario',
-                            onActionTap: () => context.go('/stock'),
+                            onActionTap: () => context.push('/stock'),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
@@ -259,22 +259,22 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                                     _ActionChip(
                                       label: 'Sin stock',
                                       onTap: () =>
-                                          context.go('/stock?filter=noStock'),
+                                          context.push('/stock?filter=noStock'),
                                     ),
                                     _ActionChip(
                                       label: 'Stock bajo',
-                                      onTap: () =>
-                                          context.go('/stock?filter=lowStock'),
+                                      onTap: () => context
+                                          .push('/stock?filter=lowStock'),
                                     ),
                                     _ActionChip(
                                       label: 'Próx. a vencer',
                                       onTap: () => context
-                                          .go('/stock?filter=nearExpiry'),
+                                          .push('/stock?filter=nearExpiry'),
                                     ),
                                     _ActionChip(
                                       label: 'Vencidos',
                                       onTap: () =>
-                                          context.go('/stock?filter=expired'),
+                                          context.push('/stock?filter=expired'),
                                     ),
                                   ],
                                 ),
@@ -285,7 +285,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                           _SectionCard(
                             title: 'Reservas',
                             actionLabel: 'Abrir reservas',
-                            onActionTap: () => context.go('/reservas'),
+                            onActionTap: () => context.push('/reservas'),
                             child: _InfoTable(
                               rows: <_InfoRowData>[
                                 _InfoRowData('Reservas activas',
@@ -319,7 +319,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                           _SectionCard(
                             title: 'Productos sin movimiento',
                             actionLabel: 'Abrir productos',
-                            onActionTap: () => context.go('/productos'),
+                            onActionTap: () => context.push('/productos'),
                             child: _ProductRankingList(
                               items: summary.stagnantProducts,
                               emptyLabel:
@@ -415,7 +415,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                           _SectionCard(
                             title: 'Ventas por categoría',
                             actionLabel: 'Abrir productos',
-                            onActionTap: () => context.go('/productos'),
+                            onActionTap: () => context.push('/productos'),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
@@ -604,7 +604,7 @@ class _SummaryGrid extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         onTap: item.route == null
                             ? null
-                            : () => context.go(item.route!),
+                            : () => context.push(item.route!),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
@@ -655,7 +655,7 @@ class _AlertSection extends StatelessWidget {
                         title: Text(alert.title),
                         subtitle: Text(alert.subtitle),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => context.go(alert.route),
+                        onTap: () => context.push(alert.route),
                       ),
                     ),
                   )
@@ -1019,7 +1019,7 @@ class _ProductRankingSection extends StatelessWidget {
     return _SectionCard(
       title: 'Ranking de productos',
       actionLabel: 'Abrir productos',
-      onActionTap: () => context.go('/productos'),
+      onActionTap: () => context.push('/productos'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1107,7 +1107,7 @@ class _ProductRankingList extends StatelessWidget {
                 '${showInventoryValue ? ' · Stock: ${item.stockAvailable} · Valor stock: ${_formatMoney(item.inventoryValueCents)}' : ''}',
               ),
               trailing: Text(_formatMoney(item.revenueCents)),
-              onTap: () => context.go('/productos/${item.productId}'),
+              onTap: () => context.push('/productos/${item.productId}'),
             ),
           )
           .toList(),
@@ -1166,7 +1166,7 @@ class _SupplierRankingList extends StatelessWidget {
               ),
               trailing: Text(_formatMoney(
                   item.receivedCostCents + item.expenseAmountCents)),
-              onTap: () => context.go('/proveedores/${item.supplierId}'),
+              onTap: () => context.push('/proveedores/${item.supplierId}'),
             ),
           )
           .toList(),

@@ -155,6 +155,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Ventas'),
         actions: <Widget>[
           IconButton(

@@ -1,9 +1,14 @@
+import 'dart:io';
+
 import 'package:control_stok_celu/data/backup/local_backup_service.dart';
 import 'package:control_stok_celu/data/db/app_database.dart';
 import 'package:control_stok_celu/data/repositories/drift_stock_repository.dart';
+import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:control_stok_celu/domain/stock/stock_repository.dart';
 import 'package:control_stok_celu/domain/stock/stock_use_cases.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 final appSessionRevisionProvider = StateProvider<int>((ref) => 0);
 
@@ -40,6 +45,24 @@ final localBackupServiceProvider = Provider<LocalBackupService>((ref) {
     currentSchemaVersion: AppDatabase.currentSchemaVersion,
     appVersion: kAppProductionVersion,
   );
+});
+
+class StockBackupCoordinator {
+  StockBackupCoordinator(this._backupService);
+
+  final LocalBackupService _backupService;
+
+  Future<void> createBackupInBacaps() async {
+    final docsDirectory = await getApplicationDocumentsDirectory();
+    final backupDirectory = Directory(p.join(docsDirectory.path, 'bacaps'));
+    await _backupService.exportBackupToDirectory(
+      directoryPath: backupDirectory.path,
+    );
+  }
+}
+
+final stockBackupCoordinatorProvider = Provider<StockBackupCoordinator>((ref) {
+  return StockBackupCoordinator(ref.read(localBackupServiceProvider));
 });
 
 final stockRepositoryProvider = Provider<StockRepository>((ref) {
@@ -163,13 +186,23 @@ final deleteSaleDraftUseCaseProvider = Provider<DeleteSaleDraftUseCase>((ref) {
 });
 
 final reserveSaleDraftUseCaseProvider =
-    Provider<ReserveSaleDraftUseCase>((ref) {
-  return ReserveSaleDraftUseCase(ref.watch(stockRepositoryProvider));
+    Provider<Future<void> Function(String, DateTime)>((ref) {
+  final useCase = ReserveSaleDraftUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (saleId, reservedAt) async {
+    await backup.createBackupInBacaps();
+    await useCase(saleId, reservedAt);
+  };
 });
 
 final confirmSaleDraftUseCaseProvider =
-    Provider<ConfirmSaleDraftUseCase>((ref) {
-  return ConfirmSaleDraftUseCase(ref.watch(stockRepositoryProvider));
+    Provider<Future<void> Function(String, DateTime)>((ref) {
+  final useCase = ConfirmSaleDraftUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (saleId, confirmedAt) async {
+    await backup.createBackupInBacaps();
+    await useCase(saleId, confirmedAt);
+  };
 });
 
 final listSalesUseCaseProvider = Provider<ListSalesUseCase>((ref) {
@@ -196,50 +229,106 @@ final getCustomerDetailUseCaseProvider =
 });
 
 final reserveDraftReservationUseCaseProvider =
-    Provider<ReserveDraftReservationUseCase>((ref) {
-  return ReserveDraftReservationUseCase(ref.watch(stockRepositoryProvider));
+    Provider<Future<void> Function(String, DateTime)>((ref) {
+  final useCase =
+      ReserveDraftReservationUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (reservationId, reservedAt) async {
+    await backup.createBackupInBacaps();
+    await useCase(reservationId, reservedAt);
+  };
 });
 
 final deleteReservationUseCaseProvider =
-    Provider<DeleteReservationUseCase>((ref) {
-  return DeleteReservationUseCase(ref.watch(stockRepositoryProvider));
+    Provider<Future<void> Function(String, DateTime)>((ref) {
+  final useCase = DeleteReservationUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (reservationId, deletedAt) async {
+    await backup.createBackupInBacaps();
+    await useCase(reservationId, deletedAt);
+  };
 });
 
 final confirmDraftReservationSaleUseCaseProvider =
-    Provider<ConfirmDraftReservationSaleUseCase>((ref) {
-  return ConfirmDraftReservationSaleUseCase(ref.watch(stockRepositoryProvider));
+    Provider<Future<void> Function(ConfirmSaleInput)>((ref) {
+  final useCase =
+      ConfirmDraftReservationSaleUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (input) async {
+    await backup.createBackupInBacaps();
+    await useCase(input);
+  };
 });
 
-final receiveStockUseCaseProvider = Provider<ReceiveStockUseCase>((ref) {
-  return ReceiveStockUseCase(ref.watch(stockRepositoryProvider));
+final receiveStockUseCaseProvider =
+    Provider<Future<void> Function(ReceiveStockInput)>((ref) {
+  final useCase = ReceiveStockUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (input) async {
+    await backup.createBackupInBacaps();
+    await useCase(input);
+  };
 });
 
-final adjustStockUseCaseProvider = Provider<AdjustStockUseCase>((ref) {
-  return AdjustStockUseCase(ref.watch(stockRepositoryProvider));
+final adjustStockUseCaseProvider =
+    Provider<Future<void> Function(StockAdjustmentInput)>((ref) {
+  final useCase = AdjustStockUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (input) async {
+    await backup.createBackupInBacaps();
+    await useCase(input);
+  };
 });
 
 final createReservationUseCaseProvider =
-    Provider<CreateReservationUseCase>((ref) {
-  return CreateReservationUseCase(ref.watch(stockRepositoryProvider));
+    Provider<Future<void> Function(CreateReservationInput)>((ref) {
+  final useCase = CreateReservationUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (input) async {
+    await backup.createBackupInBacaps();
+    await useCase(input);
+  };
 });
 
 final cancelReservationUseCaseProvider =
-    Provider<CancelReservationUseCase>((ref) {
-  return CancelReservationUseCase(ref.watch(stockRepositoryProvider));
+    Provider<Future<void> Function(String, DateTime)>((ref) {
+  final useCase = CancelReservationUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (reservationId, canceledAt) async {
+    await backup.createBackupInBacaps();
+    await useCase(reservationId, canceledAt);
+  };
 });
 
 final confirmReservationSaleUseCaseProvider =
-    Provider<ConfirmReservationSaleUseCase>((ref) {
-  return ConfirmReservationSaleUseCase(ref.watch(stockRepositoryProvider));
+    Provider<Future<void> Function(ConfirmSaleInput)>((ref) {
+  final useCase =
+      ConfirmReservationSaleUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (input) async {
+    await backup.createBackupInBacaps();
+    await useCase(input);
+  };
 });
 
 final createDirectSaleUseCaseProvider =
-    Provider<CreateDirectSaleUseCase>((ref) {
-  return CreateDirectSaleUseCase(ref.watch(stockRepositoryProvider));
+    Provider<Future<void> Function(CreateDirectSaleInput)>((ref) {
+  final useCase = CreateDirectSaleUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (input) async {
+    await backup.createBackupInBacaps();
+    await useCase(input);
+  };
 });
 
-final createReturnUseCaseProvider = Provider<CreateReturnUseCase>((ref) {
-  return CreateReturnUseCase(ref.watch(stockRepositoryProvider));
+final createReturnUseCaseProvider =
+    Provider<Future<void> Function(CreateReturnInput)>((ref) {
+  final useCase = CreateReturnUseCase(ref.watch(stockRepositoryProvider));
+  final backup = ref.read(stockBackupCoordinatorProvider);
+  return (input) async {
+    await backup.createBackupInBacaps();
+    await useCase(input);
+  };
 });
 
 final createExpenseCategoryUseCaseProvider =
