@@ -141,15 +141,36 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                               itemCount: products.length,
                               itemBuilder: (context, index) {
                                 final product = products[index];
+                                final available = product.stockAvailable;
+                                final canAdd = available > 0;
                                 return ListTile(
                                   title: Text(product.name),
-                                  subtitle: Text(product.internalCode),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(product.internalCode),
+                                      Text(
+                                        canAdd
+                                            ? 'Stock disponible: $available'
+                                            : 'Sin stock disponible',
+                                        style: TextStyle(
+                                          color: canAdd
+                                              ? Colors.green.shade700
+                                              : Colors.red.shade700,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                   trailing: Text(
                                       _formatMoney(product.salePriceCents)),
-                                  onTap: () {
-                                    selected = product;
-                                    Navigator.of(context).pop();
-                                  },
+                                  onTap: canAdd
+                                      ? () {
+                                          selected = product;
+                                          Navigator.of(context).pop();
+                                        }
+                                      : null,
                                 );
                               },
                             ),
@@ -235,6 +256,17 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                       int.tryParse(quantityController.text.trim()) ?? 1;
                   final discountRateBps =
                       percentToBps(discountController.text.trim());
+                  final available = line.quantity;
+                  if (quantity > available) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'No puedes agregar más de $available unidades. Stock disponible: $available',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
                   setState(() {
                     final index =
                         _lines.indexWhere((item) => item.itemId == line.itemId);
@@ -396,7 +428,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                           Text(
                             'Costo total: ${_formatMoney(line.totalCostCents)}',
                             style: TextStyle(
-                              color: Colors.deepOrange.shade700,
+                              color: Colors.green.shade700,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -561,7 +593,7 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = highlight ? Colors.deepOrange.shade700 : null;
+    final accentColor = highlight ? Colors.green.shade700 : null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),

@@ -203,6 +203,31 @@ class _SalesReport extends ConsumerWidget {
             _row('Descuentos', _money(data.discountCents)),
             _row('Costos', _money(data.costCents)),
             _row('Ganancia', _money(data.netProfitCents)),
+            const SizedBox(height: 16),
+            Text('Resumen gráfico',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 10),
+            _metricBar(
+              label: 'Costos sobre facturación',
+              value: _money(data.costCents),
+              fraction:
+                  _normalizedFraction(data.costCents, data.revenueCents.abs()),
+              color: Colors.orange.shade700,
+            ),
+            _metricBar(
+              label: 'IVA sobre facturación',
+              value: _money(data.taxCents),
+              fraction:
+                  _normalizedFraction(data.taxCents, data.revenueCents.abs()),
+              color: Colors.blue.shade700,
+            ),
+            _metricBar(
+              label: 'Ganancia sobre facturación',
+              value: _money(data.netProfitCents),
+              fraction: _normalizedFraction(
+                  data.netProfitCents, data.revenueCents.abs()),
+              color: Colors.green.shade700,
+            ),
           ],
         );
       },
@@ -237,6 +262,26 @@ class _ExpensesReport extends ConsumerWidget {
           children: <Widget>[
             _row('Cantidad', '${data.count}'),
             _row('Total gastos', _money(data.totalAmountCents)),
+            const SizedBox(height: 16),
+            Text('Resumen gráfico',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 10),
+            _metricBar(
+              label: 'Promedio por gasto',
+              value: _money(
+                  data.count == 0 ? 0 : (data.totalAmountCents ~/ data.count)),
+              fraction: _normalizedFraction(
+                data.count == 0 ? 0 : (data.totalAmountCents ~/ data.count),
+                data.totalAmountCents.abs(),
+              ),
+              color: Colors.purple.shade700,
+            ),
+            _metricBar(
+              label: 'Monto total del período',
+              value: _money(data.totalAmountCents),
+              fraction: data.totalAmountCents == 0 ? 0 : 1,
+              color: Colors.red.shade700,
+            ),
           ],
         );
       },
@@ -266,6 +311,38 @@ class _InventoryReport extends ConsumerWidget {
             _row('Próximos a vencer', '${data.nearExpiryCount}'),
             _row('Vencidos', '${data.expiredCount}'),
             _row('Sobre stock', '${data.overStockCount}'),
+            const SizedBox(height: 16),
+            Text('Resumen gráfico',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 10),
+            _metricBar(
+              label: 'Sin stock',
+              value: '${data.noStockCount}',
+              fraction:
+                  _normalizedFraction(data.noStockCount, data.totalProducts),
+              color: Colors.red.shade700,
+            ),
+            _metricBar(
+              label: 'Stock bajo',
+              value: '${data.lowStockCount}',
+              fraction:
+                  _normalizedFraction(data.lowStockCount, data.totalProducts),
+              color: Colors.orange.shade700,
+            ),
+            _metricBar(
+              label: 'Próximos a vencer',
+              value: '${data.nearExpiryCount}',
+              fraction:
+                  _normalizedFraction(data.nearExpiryCount, data.totalProducts),
+              color: Colors.amber.shade700,
+            ),
+            _metricBar(
+              label: 'Vencidos',
+              value: '${data.expiredCount}',
+              fraction:
+                  _normalizedFraction(data.expiredCount, data.totalProducts),
+              color: Colors.deepPurple.shade700,
+            ),
           ],
         );
       },
@@ -401,6 +478,55 @@ Widget _row(String label, String value) {
       ],
     ),
   );
+}
+
+Widget _metricBar({
+  required String label,
+  required String value,
+  required double fraction,
+  required Color color,
+}) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(child: Text(label)),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: fraction,
+            minHeight: 10,
+            color: color,
+            backgroundColor: color.withOpacity(0.2),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+double _normalizedFraction(int part, int total) {
+  if (total <= 0) {
+    return 0;
+  }
+  final value = part.abs() / total;
+  if (value.isNaN || value.isInfinite) {
+    return 0;
+  }
+  if (value < 0) {
+    return 0;
+  }
+  if (value > 1) {
+    return 1;
+  }
+  return value;
 }
 
 String _money(int cents) {

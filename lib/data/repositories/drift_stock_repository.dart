@@ -3325,7 +3325,7 @@ class DriftStockRepository implements StockRepository {
     if (input.description.trim().isEmpty) {
       throw ValidationException('La descripción es obligatoria.');
     }
-    if (input.amountCents <= 0) {
+    if (input.amountCents == 0) {
       throw ValidationException('El importe debe ser mayor a cero.');
     }
     if (input.categoryId.trim().isEmpty) {
@@ -3375,7 +3375,7 @@ class DriftStockRepository implements StockRepository {
     if (input.description.trim().isEmpty) {
       throw ValidationException('La descripción es obligatoria.');
     }
-    if (input.amountCents <= 0) {
+    if (input.amountCents == 0) {
       throw ValidationException('El importe debe ser mayor a cero.');
     }
     if (input.categoryId.trim().isEmpty) {

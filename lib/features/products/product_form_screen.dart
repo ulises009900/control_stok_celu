@@ -4,6 +4,7 @@ import 'package:control_stok_celu/core/errors/app_exception.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ProductFormScreen extends ConsumerStatefulWidget {
   const ProductFormScreen({required this.productId, super.key});
@@ -285,8 +286,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                             }
                           });
                         },
-                        decoration: const InputDecoration(
-                            labelText: 'Código de barras'),
+                        decoration: InputDecoration(
+                          labelText: 'Código de barras',
+                          suffixIcon: IconButton(
+                            tooltip: 'Escanear con cámara',
+                            icon: const Icon(Icons.qr_code_scanner_outlined),
+                            onPressed: _scanBarcodeWithCamera,
+                          ),
+                        ),
                         validator: (_) => _barcodeInlineError,
                       ),
                       TextFormField(
@@ -501,6 +508,88 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+    );
+  }
+
+  Future<void> _scanBarcodeWithCamera() async {
+    final controller = MobileScannerController(
+      formats: const <BarcodeFormat>[
+        BarcodeFormat.ean13,
+        BarcodeFormat.ean8,
+        BarcodeFormat.code128,
+        BarcodeFormat.code39,
+        BarcodeFormat.upcA,
+        BarcodeFormat.upcE,
+        BarcodeFormat.qrCode
+      ],
+    );
+    var handled = false;
+
+    final scannedValue = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheetContext).size.height * 0.72,
+            child: Column(
+              children: <Widget>[
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Text(
+                    'Apunta la cámara al código de barras.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Expanded(
+                  child: MobileScanner(
+                    controller: controller,
+                    onDetect: (capture) {
+                      if (handled) {
+                        return;
+                      }
+                      final raw = capture.barcodes
+                          .map((barcode) => barcode.rawValue?.trim() ?? '')
+                          .firstWhere(
+                            (value) => value.isNotEmpty,
+                            orElse: () => '',
+                          );
+                      if (raw.isEmpty) {
+                        return;
+                      }
+                      handled = true;
+                      Navigator.of(sheetContext).pop(raw);
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Cancelar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    await controller.dispose();
+
+    if (!mounted || scannedValue == null || scannedValue.isEmpty) {
+      return;
+    }
+    setState(() {
+      _barcodeController.text = scannedValue;
+      _barcodeInlineError = null;
+      _dirty = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Código escaneado y cargado.')),
     );
   }
 

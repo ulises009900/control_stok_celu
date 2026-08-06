@@ -85,7 +85,10 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalle de venta')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Detalle de venta'),
+      ),
       body: FutureBuilder<SaleDetailView>(
         future: _future,
         builder: (context, snapshot) {
@@ -119,6 +122,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
               _Line(
                   label: 'Descuento', value: _formatMoney(sale.discountCents)),
               _Line(label: 'Total', value: _formatMoney(sale.totalCents)),
+              _Line(label: 'Costo total', value: _formatMoney(totalCostCents)),
               _Line(label: 'Ganancia', value: _formatMoney(sale.profitCents)),
               if ((detail.notes ?? '').trim().isNotEmpty)
                 _Line(label: 'Notas', value: detail.notes!),
