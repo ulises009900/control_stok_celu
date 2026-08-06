@@ -1,3 +1,4 @@
+import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ class SaleDetailScreen extends ConsumerStatefulWidget {
 
 class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
   late Future<SaleDetailView> _future;
+  bool _processingAction = false;
 
   @override
   void initState() {
@@ -27,29 +29,57 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
   }
 
   Future<void> _confirmDraftSale() async {
-    await ref.read(confirmSaleDraftUseCaseProvider)(
-        widget.saleId, DateTime.now().toUtc());
-    if (!mounted) {
-      return;
-    }
-    Navigator.of(context).pop(true);
+    await _runAction(() async {
+      await ref.read(confirmSaleDraftUseCaseProvider)(
+          widget.saleId, DateTime.now().toUtc());
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    });
   }
 
   Future<void> _reserveDraftSale() async {
-    await ref.read(reserveSaleDraftUseCaseProvider)(
-        widget.saleId, DateTime.now().toUtc());
-    if (!mounted) {
-      return;
-    }
-    Navigator.of(context).pop(true);
+    await _runAction(() async {
+      await ref.read(reserveSaleDraftUseCaseProvider)(
+          widget.saleId, DateTime.now().toUtc());
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    });
   }
 
   Future<void> _deleteDraft() async {
-    await ref.read(deleteSaleDraftUseCaseProvider)(widget.saleId);
-    if (!mounted) {
+    await _runAction(() async {
+      await ref.read(deleteSaleDraftUseCaseProvider)(widget.saleId);
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    });
+  }
+
+  Future<void> _runAction(Future<void> Function() action) async {
+    if (_processingAction) {
       return;
     }
-    Navigator.of(context).pop(true);
+    setState(() => _processingAction = true);
+    try {
+      await action();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo completar la operación. $e')),
+      );
+      setState(() => _future = _load());
+    } finally {
+      if (mounted) {
+        setState(() => _processingAction = false);
+      }
+    }
   }
 
   @override
@@ -97,7 +127,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
                     title: Text(line.productName),
                     subtitle: Text(
                       '${line.productCode} · Cantidad: ${line.quantity}\n'
-                      'Unitario: ${_formatMoney(line.unitPriceCents)} · IVA: ${line.taxRateBps / 100}% · Descuento: ${_formatMoney(line.discountCents)}',
+                      'Unitario: ${_formatMoney(line.unitPriceCents)} · IVA: ${bpsToPercentText(line.taxRateBps)}% · Descuento: ${_formatMoney(line.discountCents)}',
                     ),
                     trailing:
                         Text(_formatMoney(line.lineTotalCents + line.taxCents)),
@@ -118,19 +148,19 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
-                  onPressed: _reserveDraftSale,
+                  onPressed: _processingAction ? null : _reserveDraftSale,
                   icon: const Icon(Icons.bookmark_outline),
                   label: const Text('Reservar'),
                 ),
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
-                  onPressed: _confirmDraftSale,
+                  onPressed: _processingAction ? null : _confirmDraftSale,
                   icon: const Icon(Icons.check_circle_outline),
                   label: const Text('Confirmar venta'),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: _deleteDraft,
+                  onPressed: _processingAction ? null : _deleteDraft,
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('Eliminar draft'),
                 ),

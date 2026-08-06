@@ -1,4 +1,5 @@
 ﻿import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/core/errors/app_exception.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
@@ -56,6 +57,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   String? _internalCodeInlineError;
   String? _barcodeInlineError;
   String? _categoryInlineError;
+  bool _dirty = false;
 
   @override
   void initState() {
@@ -116,13 +118,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         _costController.text = _formatMoneyInput(detail.product.costCents);
         _salePriceController.text =
             _formatMoneyInput(detail.product.salePriceCents);
-        _taxController.text = detail.taxRateBps.toString();
+        _taxController.text = bpsToPercentText(detail.taxRateBps);
         _discountController.text = detail.defaultDiscountBps.toString();
         _supplierController.text = detail.supplierId ?? '';
         _notesController.text = detail.notes ?? '';
         _active = detail.product.isActive;
         _offer = detail.product.isOffer;
         _clearance = detail.product.isClearance;
+        _dirty = false;
       }
     } catch (e) {
       _loadWarning = 'No pudimos cargar algunas opciones: $e';
@@ -164,7 +167,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       location: _readOptional(_locationController),
       costCents: _parseMoneyToCents(_costController.text.trim()),
       salePriceCents: _parseMoneyToCents(_salePriceController.text.trim()),
-      taxRateBps: int.tryParse(_taxController.text.trim()) ?? 0,
+      taxRateBps: percentToBps(_taxController.text.trim()),
       defaultDiscountBps: int.tryParse(_discountController.text.trim()) ?? 0,
       isOffer: _offer,
       isClearance: _clearance,
@@ -182,6 +185,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       if (!mounted) {
         return;
       }
+      _dirty = false;
       Navigator.of(context).pop(true);
     } catch (e) {
       if (e is AppException && _handleInlineBusinessError(e.message)) {
@@ -205,237 +209,290 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-          title: Text(widget.isEdit ? 'Editar producto' : 'Nuevo producto')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    if (_loadWarning != null) ...<Widget>[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: Text(_loadWarning!),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    _sectionTitle('Identificación'),
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(labelText: 'Nombre *'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                              ? 'El nombre es obligatorio'
-                              : null,
-                    ),
-                    TextFormField(
-                      controller: _internalCodeController,
-                      onChanged: (_) {
-                        if (_internalCodeInlineError != null) {
-                          setState(() {
-                            _internalCodeInlineError = null;
-                          });
-                        }
-                      },
-                      decoration:
-                          const InputDecoration(labelText: 'Código interno *'),
-                      validator: (value) =>
-                          value == null || value.trim().isEmpty
-                              ? 'El código es obligatorio'
-                              : _internalCodeInlineError,
-                    ),
-                    TextFormField(
-                      controller: _barcodeController,
-                      onChanged: (_) {
-                        if (_barcodeInlineError != null) {
-                          setState(() {
-                            _barcodeInlineError = null;
-                          });
-                        }
-                      },
-                      decoration:
-                          const InputDecoration(labelText: 'Código de barras'),
-                      validator: (_) => _barcodeInlineError,
-                    ),
-                    TextFormField(
-                      controller: _brandController,
-                      decoration: const InputDecoration(labelText: 'Marca'),
-                    ),
-                    const SizedBox(height: 16),
-                    _sectionTitle('Clasificación'),
-                    DropdownButtonFormField<String?>(
-                      initialValue: _categoryId,
-                      items: <DropdownMenuItem<String?>>[
-                        const DropdownMenuItem<String?>(
-                            value: null, child: Text('Sin categoría')),
-                        ..._categories.map(
-                          (category) => DropdownMenuItem<String?>(
-                            value: category.id,
-                            child: Text(category.name),
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || !_dirty) {
+          return;
+        }
+        final navigator = Navigator.of(context);
+        final discard = await _confirmDiscardChanges();
+        if (!mounted || !discard) {
+          return;
+        }
+        navigator.pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+            title: Text(widget.isEdit ? 'Editar producto' : 'Nuevo producto')),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      if (_loadWarning != null) ...<Widget>[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade200),
                           ),
+                          child: Text(_loadWarning!),
                         ),
+                        const SizedBox(height: 12),
                       ],
-                      onChanged: (value) => setState(() {
-                        _categoryId = value;
-                        _categoryInlineError = null;
-                      }),
-                      decoration: InputDecoration(
-                        labelText: 'Categoría',
-                        errorText: _categoryInlineError,
+                      _sectionTitle('Identificación'),
+                      TextFormField(
+                        controller: _nameController,
+                        onChanged: (_) => setState(() => _dirty = true),
+                        decoration:
+                            const InputDecoration(labelText: 'Nombre *'),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'El nombre es obligatorio'
+                                : null,
                       ),
-                    ),
-                    TextFormField(
-                      controller: _subcategoryController,
-                      decoration:
-                          const InputDecoration(labelText: 'Subcategoría'),
-                    ),
-                    const SizedBox(height: 16),
-                    _sectionTitle('Información'),
-                    TextFormField(
-                      controller: _descriptionController,
-                      decoration:
-                          const InputDecoration(labelText: 'Descripción'),
-                      minLines: 2,
-                      maxLines: 4,
-                    ),
-                    TextFormField(
-                      controller: _characteristicsController,
-                      decoration:
-                          const InputDecoration(labelText: 'Características'),
-                    ),
-                    TextFormField(
-                      controller: _detailsController,
-                      decoration: const InputDecoration(labelText: 'Detalles'),
-                    ),
-                    TextFormField(
-                      controller: _unitController,
-                      decoration: const InputDecoration(labelText: 'Unidad'),
-                    ),
-                    TextFormField(
-                      controller: _unitsPerPackController,
-                      keyboardType: TextInputType.number,
-                      decoration:
-                          const InputDecoration(labelText: 'Unidades por pack'),
-                      validator: (value) {
-                        final parsed = int.tryParse(value ?? '');
-                        if (parsed == null || parsed <= 0) {
-                          return 'Debe ser mayor a 0';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _sectionTitle('Inventario'),
-                    const Text(
-                        'El stock se gestiona por movimientos. No se edita directo acá.'),
-                    TextFormField(
-                      controller: _stockMinController,
-                      keyboardType: TextInputType.number,
-                      decoration:
-                          const InputDecoration(labelText: 'Stock mínimo'),
-                      validator: _validateNonNegativeInt,
-                    ),
-                    TextFormField(
-                      controller: _stockMaxController,
-                      keyboardType: TextInputType.number,
-                      decoration:
-                          const InputDecoration(labelText: 'Stock máximo'),
-                      validator: _validateStockMax,
-                    ),
-                    TextFormField(
-                      controller: _locationController,
-                      decoration: const InputDecoration(labelText: 'Ubicación'),
-                    ),
-                    const SizedBox(height: 16),
-                    _sectionTitle('Precio y comercial'),
-                    TextFormField(
-                      controller: _costController,
-                      onChanged: (_) => setState(() {}),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Costo'),
-                      validator: _validateNonNegativeMoney,
-                    ),
-                    TextFormField(
-                      controller: _salePriceController,
-                      onChanged: (_) => setState(() {}),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration:
-                          const InputDecoration(labelText: 'Precio de venta'),
-                      validator: _validateSalePrice,
-                    ),
-                    TextFormField(
-                      controller: _taxController,
-                      onChanged: (_) => setState(() {}),
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                          labelText: 'IVA (bps, ej. 2100)'),
-                      validator: _validateTax,
-                    ),
-                    TextFormField(
-                      controller: _discountController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                          labelText: 'Descuento predeterminado (bps)'),
-                      validator: _validateNonNegativeInt,
-                    ),
-                    SwitchListTile(
-                      value: _offer,
-                      onChanged: (value) => setState(() => _offer = value),
-                      title: const Text('En oferta'),
-                    ),
-                    SwitchListTile(
-                      value: _clearance,
-                      onChanged: (value) => setState(() => _clearance = value),
-                      title: const Text('En liquidación'),
-                    ),
-                    const SizedBox(height: 16),
-                    _sectionTitle('Otros'),
-                    TextFormField(
-                      controller: _supplierController,
-                      decoration:
-                          const InputDecoration(labelText: 'Proveedor (id)'),
-                    ),
-                    TextFormField(
-                      controller: _notesController,
-                      decoration: const InputDecoration(labelText: 'Notas'),
-                      minLines: 2,
-                      maxLines: 4,
-                    ),
-                    SwitchListTile(
-                      value: _active,
-                      onChanged: (value) => setState(() => _active = value),
-                      title: const Text('Producto activo'),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: _saving ? null : _save,
-                      icon: _saving
-                          ? const SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.save_outlined),
-                      label:
-                          Text(_saving ? 'Guardando...' : 'Guardar producto'),
-                    ),
-                  ],
+                      TextFormField(
+                        controller: _internalCodeController,
+                        onChanged: (_) {
+                          setState(() {
+                            _dirty = true;
+                            if (_internalCodeInlineError != null) {
+                              _internalCodeInlineError = null;
+                            }
+                          });
+                        },
+                        decoration: const InputDecoration(
+                            labelText: 'Código interno *'),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'El código es obligatorio'
+                                : _internalCodeInlineError,
+                      ),
+                      TextFormField(
+                        controller: _barcodeController,
+                        onChanged: (_) {
+                          setState(() {
+                            _dirty = true;
+                            if (_barcodeInlineError != null) {
+                              _barcodeInlineError = null;
+                            }
+                          });
+                        },
+                        decoration: const InputDecoration(
+                            labelText: 'Código de barras'),
+                        validator: (_) => _barcodeInlineError,
+                      ),
+                      TextFormField(
+                        controller: _brandController,
+                        onChanged: (_) => setState(() => _dirty = true),
+                        decoration: const InputDecoration(labelText: 'Marca'),
+                      ),
+                      const SizedBox(height: 16),
+                      _sectionTitle('Clasificación'),
+                      DropdownButtonFormField<String?>(
+                        initialValue: _categoryId,
+                        items: <DropdownMenuItem<String?>>[
+                          const DropdownMenuItem<String?>(
+                              value: null, child: Text('Sin categoría')),
+                          ..._categories.map(
+                            (category) => DropdownMenuItem<String?>(
+                              value: category.id,
+                              child: Text(category.name),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) => setState(() {
+                          _categoryId = value;
+                          _categoryInlineError = null;
+                          _dirty = true;
+                        }),
+                        decoration: InputDecoration(
+                          labelText: 'Categoría',
+                          errorText: _categoryInlineError,
+                        ),
+                      ),
+                      TextFormField(
+                        controller: _subcategoryController,
+                        decoration:
+                            const InputDecoration(labelText: 'Subcategoría'),
+                      ),
+                      const SizedBox(height: 16),
+                      _sectionTitle('Información'),
+                      TextFormField(
+                        controller: _descriptionController,
+                        decoration:
+                            const InputDecoration(labelText: 'Descripción'),
+                        minLines: 2,
+                        maxLines: 4,
+                      ),
+                      TextFormField(
+                        controller: _characteristicsController,
+                        decoration:
+                            const InputDecoration(labelText: 'Características'),
+                      ),
+                      TextFormField(
+                        controller: _detailsController,
+                        decoration:
+                            const InputDecoration(labelText: 'Detalles'),
+                      ),
+                      TextFormField(
+                        controller: _unitController,
+                        decoration: const InputDecoration(labelText: 'Unidad'),
+                      ),
+                      TextFormField(
+                        controller: _unitsPerPackController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Unidades por pack'),
+                        validator: (value) {
+                          final parsed = int.tryParse(value ?? '');
+                          if (parsed == null || parsed <= 0) {
+                            return 'Debe ser mayor a 0';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _sectionTitle('Inventario'),
+                      const Text(
+                          'El stock se gestiona por movimientos. No se edita directo acá.'),
+                      TextFormField(
+                        controller: _stockMinController,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Stock mínimo'),
+                        validator: _validateNonNegativeInt,
+                      ),
+                      TextFormField(
+                        controller: _stockMaxController,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Stock máximo'),
+                        validator: _validateStockMax,
+                      ),
+                      TextFormField(
+                        controller: _locationController,
+                        decoration:
+                            const InputDecoration(labelText: 'Ubicación'),
+                      ),
+                      const SizedBox(height: 16),
+                      _sectionTitle('Precio y comercial'),
+                      TextFormField(
+                        controller: _costController,
+                        onChanged: (_) => setState(() {}),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: const InputDecoration(labelText: 'Costo'),
+                        validator: _validateNonNegativeMoney,
+                      ),
+                      TextFormField(
+                        controller: _salePriceController,
+                        onChanged: (_) => setState(() {}),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration:
+                            const InputDecoration(labelText: 'Precio de venta'),
+                        validator: _validateSalePrice,
+                      ),
+                      TextFormField(
+                        controller: _taxController,
+                        onChanged: (_) => setState(() => _dirty = true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: const InputDecoration(labelText: 'IVA (%)'),
+                        validator: _validateTax,
+                      ),
+                      TextFormField(
+                        controller: _discountController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Descuento predeterminado (bps)'),
+                        validator: _validateNonNegativeInt,
+                      ),
+                      SwitchListTile(
+                        value: _offer,
+                        onChanged: (value) => setState(() => _offer = value),
+                        title: const Text('En oferta'),
+                      ),
+                      SwitchListTile(
+                        value: _clearance,
+                        onChanged: (value) =>
+                            setState(() => _clearance = value),
+                        title: const Text('En liquidación'),
+                      ),
+                      const SizedBox(height: 16),
+                      _sectionTitle('Otros'),
+                      TextFormField(
+                        controller: _supplierController,
+                        decoration:
+                            const InputDecoration(labelText: 'Proveedor (id)'),
+                      ),
+                      TextFormField(
+                        controller: _notesController,
+                        onChanged: (_) => setState(() => _dirty = true),
+                        decoration: const InputDecoration(labelText: 'Notas'),
+                        minLines: 2,
+                        maxLines: 4,
+                      ),
+                      SwitchListTile(
+                        value: _active,
+                        onChanged: (value) => setState(() {
+                          _active = value;
+                          _dirty = true;
+                        }),
+                        title: const Text('Producto activo'),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _saving ? null : _save,
+                        icon: _saving
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.save_outlined),
+                        label:
+                            Text(_saving ? 'Guardando...' : 'Guardar producto'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+      ),
     );
+  }
+
+  Future<bool> _confirmDiscardChanges() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Salir sin guardar'),
+          content: const Text(
+            'Hay cambios sin guardar. ¿Deseas salir y descartarlos?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Salir'),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
   }
 
   Widget _sectionTitle(String title) {
@@ -499,8 +556,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     if (text.isEmpty) {
       return 'Introduce un porcentaje de IVA válido.';
     }
-    final parsed = int.tryParse(text);
-    if (parsed == null || parsed < 0) {
+    final parsed = parsePercentage(text);
+    if (parsed == null || parsed < 0 || parsed > 100) {
       return 'Introduce un porcentaje de IVA válido.';
     }
     return null;

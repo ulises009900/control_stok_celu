@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:control_stok_celu/data/db/app_database.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,6 +21,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       TextEditingController();
   bool _loading = true;
   bool _saving = false;
+  String? _backupStatus;
 
   @override
   void initState() {
@@ -89,6 +91,101 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _exportBackup() async {
+    final directoryPath = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Elegir carpeta para backup',
+    );
+    if (directoryPath == null) {
+      return;
+    }
+    final service = ref.read(localBackupServiceProvider);
+    try {
+      final backup = await service.exportBackupToDirectory(
+        directoryPath: directoryPath,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _backupStatus = backup.filePath);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Backup guardado en ${backup.filePath}')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo exportar el backup. $e')),
+      );
+    }
+  }
+
+  Future<void> _restoreBackup() async {
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Seleccionar backup',
+      type: FileType.custom,
+      allowedExtensions: <String>['db', 'sqlite'],
+    );
+    final path = result?.files.single.path;
+    if (path == null) {
+      return;
+    }
+    final service = ref.read(localBackupServiceProvider);
+    try {
+      final validation = await service.validateBackupFile(path);
+      if (!mounted) {
+        return;
+      }
+      final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Restaurar backup'),
+                content: Text(
+                  'Schema: ${validation.schemaVersion ?? 'desconocido'}\n'
+                  'App: ${validation.appVersion ?? 'desconocida'}\n'
+                  'Fecha: ${validation.createdAt?.toLocal() ?? '-'}\n\n'
+                  'Antes de restaurar se creará una copia de seguridad de la base actual. ¿Continuar?',
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Restaurar'),
+                  ),
+                ],
+              );
+            },
+          ) ??
+          false;
+      if (!confirmed) {
+        return;
+      }
+      final restore = await service.restoreBackup(path);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _backupStatus = restore.safetyBackup.filePath);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Restauración completada. Backup de seguridad: ${restore.safetyBackup.filePath}',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo restaurar el backup. $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,6 +217,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   decoration: const InputDecoration(
                       labelText: 'Días para próximo vencimiento'),
                 ),
+                const SizedBox(height: 16),
+                Text(
+                  'Backup local',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _exportBackup,
+                  icon: const Icon(Icons.download_outlined),
+                  label: const Text('Exportar copia local'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _restoreBackup,
+                  icon: const Icon(Icons.upload_file_outlined),
+                  label: const Text('Restaurar copia local'),
+                ),
+                if ((_backupStatus ?? '').isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text(
+                    _backupStatus!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   onPressed: _saving ? null : _save,

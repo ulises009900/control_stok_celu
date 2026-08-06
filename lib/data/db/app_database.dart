@@ -7,6 +7,13 @@ import 'package:path_provider/path_provider.dart';
 
 part 'app_database.g.dart';
 
+const String kAppDatabaseFileName = 'control_stok_celu.sqlite';
+
+Future<File> resolveAppDatabaseFile() async {
+  final Directory dbFolder = await getApplicationDocumentsDirectory();
+  return File(p.join(dbFolder.path, kAppDatabaseFileName));
+}
+
 class Categories extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
@@ -488,8 +495,10 @@ class AuditLogs extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
+  static const int currentSchemaVersion = 4;
+
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => currentSchemaVersion;
 
   Future<void> _ensureExpensesSchema() async {
     final tableExists = await customSelect(
@@ -668,8 +677,7 @@ class AppDatabase extends _$AppDatabase {
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
-    final Directory dbFolder = await getApplicationDocumentsDirectory();
-    final File file = File(p.join(dbFolder.path, 'control_stok_celu.sqlite'));
+    final File file = await resolveAppDatabaseFile();
     return NativeDatabase.createInBackground(file);
   });
 }

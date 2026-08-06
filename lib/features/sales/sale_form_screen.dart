@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +29,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   List<CustomerListItem> _customers = <CustomerListItem>[];
   final List<_EditableSaleLine> _lines = <_EditableSaleLine>[];
   DateTime _createdAt = DateTime.now().toUtc();
+  bool _dirty = false;
 
   @override
   void initState() {
@@ -68,10 +70,12 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                 unitPriceCents: line.unitPriceCents,
                 unitCostCents: line.unitCostCents,
                 taxRateBps: line.taxRateBps,
-                discountCents: line.discountCents,
+                discountRateBps:
+                    _discountCentsToRateBps(line.discountCents, line),
               ),
             ),
           );
+        _dirty = false;
       }
     } catch (e) {
       _error = 'No pudimos cargar la venta. $e';
@@ -182,17 +186,19 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
             unitPriceCents: selected!.salePriceCents,
             unitCostCents: selected!.costCents,
             taxRateBps: detail.taxRateBps,
-            discountCents: 0,
+            discountRateBps: 0,
           ),
         );
       }
+      _dirty = true;
     });
   }
 
   Future<void> _editLine(_EditableSaleLine line) async {
     final quantityController = TextEditingController(text: '${line.quantity}');
-    final discountController =
-        TextEditingController(text: '${line.discountCents / 100}');
+    final discountController = TextEditingController(
+      text: bpsToPercentText(line.discountRateBps),
+    );
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -220,22 +226,24 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                 controller: discountController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Descuento'),
+                decoration: const InputDecoration(labelText: 'Descuento (%)'),
               ),
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: () {
                   final quantity =
                       int.tryParse(quantityController.text.trim()) ?? 1;
-                  final discount = _parseMoney(discountController.text.trim());
+                  final discountRateBps =
+                      percentToBps(discountController.text.trim());
                   setState(() {
                     final index =
                         _lines.indexWhere((item) => item.itemId == line.itemId);
                     if (index >= 0) {
                       _lines[index] = _lines[index].copyWith(
                         quantity: quantity < 1 ? 1 : quantity,
-                        discountCents: discount < 0 ? 0 : discount,
+                        discountRateBps: discountRateBps.clamp(0, 10000),
                       );
+                      _dirty = true;
                     }
                   });
                   Navigator.of(context).pop();
@@ -283,6 +291,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       if (!mounted) {
         return;
       }
+      _dirty = false;
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) {
@@ -322,94 +331,142 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     final cost = _lines.fold<int>(0, (sum, line) => sum + line.totalCostCents);
     final profit = total - cost;
 
-    return Scaffold(
-      appBar:
-          AppBar(title: Text(widget.isEdit ? 'Editar venta' : 'Nueva venta')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          DropdownButtonFormField<String?>(
-            initialValue: _customerId,
-            decoration: const InputDecoration(labelText: 'Cliente'),
-            items: <DropdownMenuItem<String?>>[
-              const DropdownMenuItem<String?>(
-                  value: null, child: Text('Sin cliente')),
-              ..._customers.map(
-                (customer) => DropdownMenuItem<String?>(
-                  value: customer.id,
-                  child: Text(customer.name),
+    return PopScope(
+        canPop: !_dirty,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop || !_dirty) {
+            return;
+          }
+          final navigator = Navigator.of(context);
+          final discard = await _confirmDiscardChanges();
+          if (!mounted || !discard) {
+            return;
+          }
+          navigator.pop();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+              title: Text(widget.isEdit ? 'Editar venta' : 'Nueva venta')),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: <Widget>[
+              DropdownButtonFormField<String?>(
+                initialValue: _customerId,
+                decoration: const InputDecoration(labelText: 'Cliente'),
+                items: <DropdownMenuItem<String?>>[
+                  const DropdownMenuItem<String?>(
+                      value: null, child: Text('Sin cliente')),
+                  ..._customers.map(
+                    (customer) => DropdownMenuItem<String?>(
+                      value: customer.id,
+                      child: Text(customer.name),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() {
+                  _customerId = value;
+                  _dirty = true;
+                }),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _pickProduct,
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar producto'),
+              ),
+              const SizedBox(height: 12),
+              if (_lines.isEmpty)
+                const Text('No hay productos en la venta.')
+              else
+                ..._lines.map(
+                  (line) => Card(
+                    child: ListTile(
+                      title: Text(line.productName),
+                      subtitle: Text(
+                        '${line.productCode} · Cantidad: ${line.quantity} · IVA: ${bpsToPercentText(line.taxRateBps)}%\n'
+                        'Unitario: ${_formatMoney(line.unitPriceCents)} · Descuento: ${bpsToPercentText(line.discountRateBps)}% · Total: ${_formatMoney(line.totalCents)}',
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            _editLine(line);
+                          } else if (value == 'remove') {
+                            setState(() {
+                              _lines.removeWhere(
+                                  (item) => item.itemId == line.itemId);
+                              _dirty = true;
+                            });
+                          }
+                        },
+                        itemBuilder: (context) =>
+                            const <PopupMenuEntry<String>>[
+                          PopupMenuItem<String>(
+                              value: 'edit', child: Text('Editar')),
+                          PopupMenuItem<String>(
+                              value: 'remove', child: Text('Quitar')),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesController,
+                onChanged: (_) => setState(() => _dirty = true),
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: 'Notas'),
+              ),
+              const SizedBox(height: 16),
+              _SummaryRow(label: 'Subtotal', value: _formatMoney(subtotal)),
+              _SummaryRow(
+                  label: 'Descuento',
+                  value: _formatMoney(_lines.fold<int>(
+                      0, (sum, line) => sum + line.discountCents))),
+              _SummaryRow(label: 'IVA', value: _formatMoney(tax)),
+              _SummaryRow(label: 'Total a cobrar', value: _formatMoney(total)),
+              _SummaryRow(label: 'Costo', value: _formatMoney(cost)),
+              _SummaryRow(label: 'Ganancia', value: _formatMoney(profit)),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: const Text('Guardar draft'),
               ),
             ],
-            onChanged: (value) => setState(() => _customerId = value),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _pickProduct,
-            icon: const Icon(Icons.add),
-            label: const Text('Agregar producto'),
+        ));
+  }
+
+  Future<bool> _confirmDiscardChanges() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Salir sin guardar'),
+          content: const Text(
+            'Hay cambios sin guardar. ¿Deseas salir y descartarlos?',
           ),
-          const SizedBox(height: 12),
-          if (_lines.isEmpty)
-            const Text('No hay productos en la venta.')
-          else
-            ..._lines.map(
-              (line) => Card(
-                child: ListTile(
-                  title: Text(line.productName),
-                  subtitle: Text(
-                    '${line.productCode} · Cantidad: ${line.quantity} · IVA: ${line.taxRateBps / 100}%\n'
-                    'Unitario: ${_formatMoney(line.unitPriceCents)} · Descuento: ${_formatMoney(line.discountCents)} · Total: ${_formatMoney(line.totalCents)}',
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        _editLine(line);
-                      } else if (value == 'remove') {
-                        setState(() {
-                          _lines.removeWhere(
-                              (item) => item.itemId == line.itemId);
-                        });
-                      }
-                    },
-                    itemBuilder: (context) => const <PopupMenuEntry<String>>[
-                      PopupMenuItem<String>(
-                          value: 'edit', child: Text('Editar')),
-                      PopupMenuItem<String>(
-                          value: 'remove', child: Text('Quitar')),
-                    ],
-                  ),
-                ),
-              ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
             ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _notesController,
-            minLines: 2,
-            maxLines: 4,
-            decoration: const InputDecoration(labelText: 'Notas'),
-          ),
-          const SizedBox(height: 16),
-          _SummaryRow(label: 'Subtotal', value: _formatMoney(subtotal)),
-          _SummaryRow(label: 'IVA', value: _formatMoney(tax)),
-          _SummaryRow(label: 'Total', value: _formatMoney(total)),
-          _SummaryRow(label: 'Costo', value: _formatMoney(cost)),
-          _SummaryRow(label: 'Ganancia', value: _formatMoney(profit)),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save_outlined),
-            label: const Text('Guardar draft'),
-          ),
-        ],
-      ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Salir'),
+            ),
+          ],
+        );
+      },
     );
+    return result ?? false;
   }
 }
 
@@ -423,7 +480,7 @@ class _EditableSaleLine {
     required this.unitPriceCents,
     required this.unitCostCents,
     required this.taxRateBps,
-    required this.discountCents,
+    required this.discountRateBps,
   });
 
   final String itemId;
@@ -434,16 +491,19 @@ class _EditableSaleLine {
   final int unitPriceCents;
   final int unitCostCents;
   final int taxRateBps;
-  final int discountCents;
+  final int discountRateBps;
 
-  int get subtotalCents => (unitPriceCents * quantity) - discountCents;
+  int get grossSubtotalCents => unitPriceCents * quantity;
+  int get discountCents =>
+      ((grossSubtotalCents * discountRateBps) / 10000).round();
+  int get subtotalCents => grossSubtotalCents - discountCents;
   int get taxCents => ((subtotalCents * taxRateBps) / 10000).round();
   int get totalCents => subtotalCents + taxCents;
   int get totalCostCents => unitCostCents * quantity;
 
   _EditableSaleLine copyWith({
     int? quantity,
-    int? discountCents,
+    int? discountRateBps,
   }) {
     return _EditableSaleLine(
       itemId: itemId,
@@ -454,9 +514,18 @@ class _EditableSaleLine {
       unitPriceCents: unitPriceCents,
       unitCostCents: unitCostCents,
       taxRateBps: taxRateBps,
-      discountCents: discountCents ?? this.discountCents,
+      discountRateBps: discountRateBps ?? this.discountRateBps,
     );
   }
+}
+
+int _discountCentsToRateBps(int discountCents, SaleLineView line) {
+  final gross = line.unitPriceCents * line.quantity;
+  if (gross <= 0 || discountCents <= 0) {
+    return 0;
+  }
+  final bps = ((discountCents * 10000) / gross).round();
+  return bps.clamp(0, 10000);
 }
 
 class _SummaryRow extends StatelessWidget {
@@ -477,14 +546,6 @@ class _SummaryRow extends StatelessWidget {
       ),
     );
   }
-}
-
-int _parseMoney(String raw) {
-  if (raw.trim().isEmpty) {
-    return 0;
-  }
-  final parsed = double.tryParse(raw.replaceAll(',', '.')) ?? 0;
-  return (parsed * 100).round();
 }
 
 String _formatMoney(int cents) {

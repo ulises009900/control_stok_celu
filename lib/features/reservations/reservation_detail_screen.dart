@@ -1,3 +1,4 @@
+import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ class ReservationDetailScreen extends ConsumerStatefulWidget {
 class _ReservationDetailScreenState
     extends ConsumerState<ReservationDetailScreen> {
   late Future<ReservationDetailView> _future;
+  bool _processingAction = false;
 
   @override
   void initState() {
@@ -29,58 +31,90 @@ class _ReservationDetailScreenState
   }
 
   Future<void> _reserveDraft() async {
-    await ref.read(reserveDraftReservationUseCaseProvider)(
-        widget.reservationId, DateTime.now().toUtc());
-    if (!mounted) {
-      return;
-    }
-    Navigator.of(context).pop(true);
+    await _runAction(() async {
+      await ref.read(reserveDraftReservationUseCaseProvider)(
+          widget.reservationId, DateTime.now().toUtc());
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    });
   }
 
   Future<void> _cancelReservation() async {
-    await ref.read(cancelReservationUseCaseProvider)(
-        widget.reservationId, DateTime.now().toUtc());
-    if (!mounted) {
-      return;
-    }
-    Navigator.of(context).pop(true);
+    await _runAction(() async {
+      await ref.read(cancelReservationUseCaseProvider)(
+          widget.reservationId, DateTime.now().toUtc());
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    });
   }
 
   Future<void> _deleteReservation() async {
-    await ref.read(deleteReservationUseCaseProvider)(
-        widget.reservationId, DateTime.now().toUtc());
-    if (!mounted) {
-      return;
-    }
-    Navigator.of(context).pop(true);
+    await _runAction(() async {
+      await ref.read(deleteReservationUseCaseProvider)(
+          widget.reservationId, DateTime.now().toUtc());
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    });
   }
 
   Future<void> _confirmDraftSale() async {
-    await ref.read(confirmDraftReservationSaleUseCaseProvider)(
-      ConfirmSaleInput(
-        saleId: widget.reservationId,
-        reservationId: widget.reservationId,
-        confirmedAt: DateTime.now().toUtc(),
-      ),
-    );
-    if (!mounted) {
-      return;
-    }
-    Navigator.of(context).pop(true);
+    await _runAction(() async {
+      await ref.read(confirmDraftReservationSaleUseCaseProvider)(
+        ConfirmSaleInput(
+          saleId: widget.reservationId,
+          reservationId: widget.reservationId,
+          confirmedAt: DateTime.now().toUtc(),
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    });
   }
 
   Future<void> _confirmReservedSale() async {
-    await ref.read(confirmReservationSaleUseCaseProvider)(
-      ConfirmSaleInput(
-        saleId: widget.reservationId,
-        reservationId: widget.reservationId,
-        confirmedAt: DateTime.now().toUtc(),
-      ),
-    );
-    if (!mounted) {
+    await _runAction(() async {
+      await ref.read(confirmReservationSaleUseCaseProvider)(
+        ConfirmSaleInput(
+          saleId: widget.reservationId,
+          reservationId: widget.reservationId,
+          confirmedAt: DateTime.now().toUtc(),
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    });
+  }
+
+  Future<void> _runAction(Future<void> Function() action) async {
+    if (_processingAction) {
       return;
     }
-    Navigator.of(context).pop(true);
+    setState(() => _processingAction = true);
+    try {
+      await action();
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo completar la operación. $e')),
+      );
+      setState(() => _future = _load());
+    } finally {
+      if (mounted) {
+        setState(() => _processingAction = false);
+      }
+    }
   }
 
   @override
@@ -129,7 +163,7 @@ class _ReservationDetailScreenState
                     title: Text(line.productName),
                     subtitle: Text(
                       '${line.productCode} · Cantidad: ${line.quantity}\n'
-                      'Unitario: ${_formatMoney(line.unitPriceCents)} · IVA: ${line.taxRateBps / 100}% · Descuento: ${_formatMoney(line.discountCents)}',
+                      'Unitario: ${_formatMoney(line.unitPriceCents)} · IVA: ${bpsToPercentText(line.taxRateBps)}% · Descuento: ${_formatMoney(line.discountCents)}',
                     ),
                     trailing: Text(_formatMoney(line.lineTotalCents +
                         ((line.lineTotalCents * line.taxRateBps) / 10000)
@@ -152,38 +186,38 @@ class _ReservationDetailScreenState
                 ),
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
-                  onPressed: _reserveDraft,
+                  onPressed: _processingAction ? null : _reserveDraft,
                   icon: const Icon(Icons.bookmark_outline),
                   label: const Text('Reservar'),
                 ),
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
-                  onPressed: _confirmDraftSale,
+                  onPressed: _processingAction ? null : _confirmDraftSale,
                   icon: const Icon(Icons.point_of_sale_outlined),
                   label: const Text('Convertir en venta'),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: _deleteReservation,
+                  onPressed: _processingAction ? null : _deleteReservation,
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('Eliminar draft'),
                 ),
               ],
               if (reservation.status == 'reserved') ...<Widget>[
                 FilledButton.tonalIcon(
-                  onPressed: _confirmReservedSale,
+                  onPressed: _processingAction ? null : _confirmReservedSale,
                   icon: const Icon(Icons.point_of_sale_outlined),
                   label: const Text('Confirmar venta'),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: _cancelReservation,
+                  onPressed: _processingAction ? null : _cancelReservation,
                   icon: const Icon(Icons.cancel_outlined),
                   label: const Text('Cancelar reserva'),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: _deleteReservation,
+                  onPressed: _processingAction ? null : _deleteReservation,
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('Eliminar reserva'),
                 ),

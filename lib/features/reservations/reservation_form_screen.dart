@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +30,7 @@ class _ReservationFormScreenState extends ConsumerState<ReservationFormScreen> {
   List<CustomerListItem> _customers = <CustomerListItem>[];
   final List<_EditableReservationLine> _lines = <_EditableReservationLine>[];
   DateTime _createdAt = DateTime.now().toUtc();
+  bool _dirty = false;
 
   @override
   void initState() {
@@ -73,6 +75,7 @@ class _ReservationFormScreenState extends ConsumerState<ReservationFormScreen> {
               ),
             ),
           );
+        _dirty = false;
       }
     } catch (e) {
       _error = 'No pudimos cargar la reserva. $e';
@@ -187,6 +190,7 @@ class _ReservationFormScreenState extends ConsumerState<ReservationFormScreen> {
           ),
         );
       }
+      _dirty = true;
     });
   }
 
@@ -224,6 +228,7 @@ class _ReservationFormScreenState extends ConsumerState<ReservationFormScreen> {
       if (!mounted) {
         return;
       }
+      _dirty = false;
       Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) {
@@ -261,83 +266,126 @@ class _ReservationFormScreenState extends ConsumerState<ReservationFormScreen> {
     final tax = _lines.fold<int>(0, (sum, line) => sum + line.taxCents);
     final total = subtotal + tax;
 
-    return Scaffold(
-      appBar: AppBar(
-          title: Text(widget.isEdit ? 'Editar reserva' : 'Nueva reserva')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          DropdownButtonFormField<String?>(
-            initialValue: _customerId,
-            decoration: const InputDecoration(labelText: 'Cliente'),
-            items: <DropdownMenuItem<String?>>[
-              const DropdownMenuItem<String?>(
-                  value: null, child: Text('Sin cliente')),
-              ..._customers.map(
-                (customer) => DropdownMenuItem<String?>(
-                  value: customer.id,
-                  child: Text(customer.name),
+    return PopScope(
+        canPop: !_dirty,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop || !_dirty) {
+            return;
+          }
+          final navigator = Navigator.of(context);
+          final discard = await _confirmDiscardChanges();
+          if (!mounted || !discard) {
+            return;
+          }
+          navigator.pop();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+              title: Text(widget.isEdit ? 'Editar reserva' : 'Nueva reserva')),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: <Widget>[
+              DropdownButtonFormField<String?>(
+                initialValue: _customerId,
+                decoration: const InputDecoration(labelText: 'Cliente'),
+                items: <DropdownMenuItem<String?>>[
+                  const DropdownMenuItem<String?>(
+                      value: null, child: Text('Sin cliente')),
+                  ..._customers.map(
+                    (customer) => DropdownMenuItem<String?>(
+                      value: customer.id,
+                      child: Text(customer.name),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() {
+                  _customerId = value;
+                  _dirty = true;
+                }),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _pickProduct,
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar producto'),
+              ),
+              const SizedBox(height: 12),
+              if (_lines.isEmpty)
+                const Text('No hay productos en la reserva.')
+              else
+                ..._lines.map(
+                  (line) => Card(
+                    child: ListTile(
+                      title: Text(line.productName),
+                      subtitle: Text(
+                        '${line.productCode} · Cantidad: ${line.quantity} · IVA: ${bpsToPercentText(line.taxRateBps)}%\n'
+                        'Unitario: ${_formatMoney(line.unitPriceCents)} · Descuento: ${_formatMoney(line.discountCents)} · Total: ${_formatMoney(line.totalCents)}',
+                      ),
+                      trailing: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _lines.removeWhere(
+                                (item) => item.itemId == line.itemId);
+                            _dirty = true;
+                          });
+                        },
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ),
+                  ),
                 ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesController,
+                onChanged: (_) => setState(() => _dirty = true),
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: 'Notas'),
+              ),
+              const SizedBox(height: 16),
+              _SummaryRow(label: 'Subtotal', value: _formatMoney(subtotal)),
+              _SummaryRow(label: 'IVA', value: _formatMoney(tax)),
+              _SummaryRow(label: 'Total a cobrar', value: _formatMoney(total)),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: const Text('Guardar draft'),
               ),
             ],
-            onChanged: (value) => setState(() => _customerId = value),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _pickProduct,
-            icon: const Icon(Icons.add),
-            label: const Text('Agregar producto'),
+        ));
+  }
+
+  Future<bool> _confirmDiscardChanges() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Salir sin guardar'),
+          content: const Text(
+            'Hay cambios sin guardar. ¿Deseas salir y descartarlos?',
           ),
-          const SizedBox(height: 12),
-          if (_lines.isEmpty)
-            const Text('No hay productos en la reserva.')
-          else
-            ..._lines.map(
-              (line) => Card(
-                child: ListTile(
-                  title: Text(line.productName),
-                  subtitle: Text(
-                    '${line.productCode} · Cantidad: ${line.quantity} · IVA: ${line.taxRateBps / 100}%\n'
-                    'Unitario: ${_formatMoney(line.unitPriceCents)} · Descuento: ${_formatMoney(line.discountCents)} · Total: ${_formatMoney(line.totalCents)}',
-                  ),
-                  trailing: IconButton(
-                    onPressed: () {
-                      setState(() {
-                        _lines
-                            .removeWhere((item) => item.itemId == line.itemId);
-                      });
-                    },
-                    icon: const Icon(Icons.delete_outline),
-                  ),
-                ),
-              ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
             ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _notesController,
-            minLines: 2,
-            maxLines: 4,
-            decoration: const InputDecoration(labelText: 'Notas'),
-          ),
-          const SizedBox(height: 16),
-          _SummaryRow(label: 'Subtotal', value: _formatMoney(subtotal)),
-          _SummaryRow(label: 'IVA', value: _formatMoney(tax)),
-          _SummaryRow(label: 'Total', value: _formatMoney(total)),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save_outlined),
-            label: const Text('Guardar draft'),
-          ),
-        ],
-      ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Salir'),
+            ),
+          ],
+        );
+      },
     );
+    return result ?? false;
   }
 }
 

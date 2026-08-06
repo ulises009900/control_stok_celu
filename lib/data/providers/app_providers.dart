@@ -1,13 +1,45 @@
+import 'package:control_stok_celu/data/backup/local_backup_service.dart';
 import 'package:control_stok_celu/data/db/app_database.dart';
 import 'package:control_stok_celu/data/repositories/drift_stock_repository.dart';
 import 'package:control_stok_celu/domain/stock/stock_repository.dart';
 import 'package:control_stok_celu/domain/stock/stock_use_cases.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+final appSessionRevisionProvider = StateProvider<int>((ref) => 0);
+
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
+  ref.watch(appSessionRevisionProvider);
   final db = AppDatabase();
   ref.onDispose(db.close);
   return db;
+});
+
+class AppDatabaseLifecycle {
+  AppDatabaseLifecycle(this._ref);
+
+  final Ref _ref;
+
+  Future<void> restart() async {
+    final db = _ref.read(appDatabaseProvider);
+    await db.close();
+    _ref.invalidate(appDatabaseProvider);
+    _ref.invalidate(stockRepositoryProvider);
+    _ref.read(appSessionRevisionProvider.notifier).state++;
+  }
+}
+
+final appDatabaseLifecycleProvider = Provider<AppDatabaseLifecycle>((ref) {
+  return AppDatabaseLifecycle(ref);
+});
+
+final localBackupServiceProvider = Provider<LocalBackupService>((ref) {
+  return LocalBackupService(
+    getDatabase: () async => ref.read(appDatabaseProvider),
+    resolvePrimaryDatabaseFile: resolveAppDatabaseFile,
+    restartDatabase: () => ref.read(appDatabaseLifecycleProvider).restart(),
+    currentSchemaVersion: AppDatabase.currentSchemaVersion,
+    appVersion: kAppProductionVersion,
+  );
 });
 
 final stockRepositoryProvider = Provider<StockRepository>((ref) {
