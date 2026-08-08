@@ -413,6 +413,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       _sectionTitle('Precio y comercial'),
                       TextFormField(
                         controller: _costController,
+                        style: const TextStyle(color: Colors.black),
                         onChanged: (_) {
                           _recalculateSalePriceFromProfit();
                           setState(() {
@@ -421,17 +422,24 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         },
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
-                        decoration:
-                            const InputDecoration(labelText: 'Costo total'),
+                        decoration: const InputDecoration(
+                          labelText: 'Costo total',
+                          labelStyle: TextStyle(color: Colors.black),
+                          floatingLabelStyle: TextStyle(color: Colors.black),
+                        ),
                         validator: _validateNonNegativeMoney,
                       ),
                       TextFormField(
                         controller: _salePriceController,
+                        style: const TextStyle(color: Colors.green),
                         onChanged: (_) => setState(() => _dirty = true),
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
-                        decoration:
-                            const InputDecoration(labelText: 'Precio de venta'),
+                        decoration: const InputDecoration(
+                          labelText: 'Precio de venta',
+                          labelStyle: TextStyle(color: Colors.green),
+                          floatingLabelStyle: TextStyle(color: Colors.green),
+                        ),
                         validator: _validateSalePrice,
                       ),
                       TextFormField(

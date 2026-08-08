@@ -472,11 +472,14 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                   value: _formatMoney(_lines.fold<int>(
                       0, (sum, line) => sum + line.discountCents))),
               _SummaryRow(label: 'IVA', value: _formatMoney(tax)),
-              _SummaryRow(label: 'Total a cobrar', value: _formatMoney(total)),
+              _SummaryRow(
+                label: 'Total a cobrar',
+                value: _formatMoney(total),
+                highlight: true,
+              ),
               _SummaryRow(
                 label: 'Costo total',
                 value: _formatMoney(cost),
-                highlight: true,
               ),
               _SummaryRow(label: 'Ganancia', value: _formatMoney(profit)),
               const SizedBox(height: 16),
