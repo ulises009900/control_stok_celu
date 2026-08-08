@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:control_stok_celu/core/errors/app_exception.dart';
 import 'package:control_stok_celu/data/db/app_database.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
 const String kAppProductionVersion = '1.0.0+1';
@@ -68,6 +69,52 @@ class LocalBackupService {
   final Future<void> Function() _restartDatabase;
   final int _currentSchemaVersion;
   final String _appVersion;
+
+  /// Resuelve la carpeta de copias de seguridad dentro de Descargas (Download/ControlStokCelu/Backups)
+  Future<Directory?> resolvePublicDownloadsBackupDirectory() async {
+    Directory? downloadsDir;
+
+    if (Platform.isAndroid) {
+      downloadsDir =
+          Directory('/storage/emulated/0/Download/ControlStokCelu/Backups');
+    }
+
+    if (downloadsDir == null || !await downloadsDir.exists()) {
+      try {
+        await downloadsDir?.create(recursive: true);
+      } catch (_) {
+        // Fallback a almacenamiento interno si no hay permisos de escritura directos
+        final dbFile = await _resolvePrimaryDatabaseFile();
+        downloadsDir = Directory(p.join(dbFile.parent.path, 'Backups'));
+        if (!await downloadsDir.exists()) {
+          await downloadsDir.create(recursive: true);
+        }
+      }
+    }
+
+    return downloadsDir;
+  }
+
+  /// Realiza una copia de seguridad automática en la carpeta de Descargas
+  Future<BackupExportResult?> performAutoBackup(
+      {String prefix = 'auto'}) async {
+    try {
+      final targetDir = await resolvePublicDownloadsBackupDirectory();
+      final now = DateTime.now().toUtc();
+      final fileName = 'control_stok_${prefix}_${_safeTimestamp(now)}.db';
+      return await exportBackupToDirectory(
+        directoryPath: targetDir!.path,
+        fileName: fileName,
+      );
+    } catch (e) {
+      // Manejo silencioso en logs o reporte para no bloquear el flujo del usuario
+      assert(() {
+        debugPrint('Error en auto backup ($prefix): $e');
+        return true;
+      }());
+      return null;
+    }
+  }
 
   Future<BackupExportResult> exportBackupToDirectory({
     required String directoryPath,
@@ -392,6 +439,35 @@ class _PreparedBackup {
   Future<void> dispose() async {
     if (await tempDirectory.exists()) {
       await tempDirectory.delete(recursive: true);
+    }
+  }
+}
+
+/// Observador del ciclo de vida para ejecutar los backups automáticamente al abrir y cerrar
+class AppLifecycleBackupObserver extends WidgetsBindingObserver {
+  AppLifecycleBackupObserver({required this.backupService});
+
+  final LocalBackupService backupService;
+
+  void init() {
+    WidgetsBinding.instance.addObserver(this);
+    // Ejecuta la copia al iniciar la aplicación por primera vez
+    backupService.performAutoBackup(prefix: 'al_abrir');
+  }
+
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Se ejecuta cuando la app vuelve a primer plano
+      backupService.performAutoBackup(prefix: 'al_abrir');
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      // Se ejecuta cuando la app se minimiza o se cierra
+      backupService.performAutoBackup(prefix: 'al_cerrar');
     }
   }
 }
