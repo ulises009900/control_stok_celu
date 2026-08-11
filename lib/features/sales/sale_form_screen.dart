@@ -189,12 +189,26 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     }
     final detail =
         await ref.read(getProductDetailUseCaseProvider)(selected!.id);
+
     setState(() {
       final existingIndex =
           _lines.indexWhere((line) => line.productId == selected!.id);
+
       if (existingIndex >= 0) {
+        final currentQty = _lines[existingIndex].quantity;
+        // Validar que no se supere el stock disponible si se agrega una unidad más desde la lista
+        if (currentQty + 1 > selected!.stockAvailable) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'No puedes agregar más unidades. Stock disponible: ${selected!.stockAvailable}',
+              ),
+            ),
+          );
+          return;
+        }
         _lines[existingIndex] = _lines[existingIndex].copyWith(
-          quantity: _lines[existingIndex].quantity + 1,
+          quantity: currentQty + 1,
         );
       } else {
         _lines.add(
@@ -217,9 +231,40 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
 
   Future<void> _editLine(_EditableSaleLine line) async {
     final quantityController = TextEditingController(text: '${line.quantity}');
+
     final discountController = TextEditingController(
       text: bpsToPercentText(line.discountRateBps),
     );
+
+    // Obtener el detalle actual del producto.
+    final productDetail =
+        await ref.read(getProductDetailUseCaseProvider)(line.productId);
+
+    // ProductDetailView contiene el ProductSummaryItem en "product".
+    //
+    // stockAvailable ya es:
+    // stockTotal - stockReserved
+    final stockAvailable = productDetail.product.stockAvailable;
+
+    // Como estamos editando una venta que ya tiene esta cantidad,
+    // devolvemos temporalmente esas unidades al disponible.
+    //
+    // Ejemplo:
+    // stockTotal = 10
+    // stockReserved = 2
+    // stockAvailable = 8
+    // cantidad actual de la venta = 3
+    //
+    // Podemos editar esta línea hasta 11 porque las 3 unidades
+    // actuales ya pertenecen a esta venta.
+    final available = stockAvailable + line.quantity;
+
+    if (!mounted) {
+      quantityController.dispose();
+      discountController.dispose();
+      return;
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -234,59 +279,97 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(line.productName,
-                  style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                line.productName,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Stock disponible: $stockAvailable',
+                style: TextStyle(
+                  color: stockAvailable > 0
+                      ? Colors.green.shade700
+                      : Colors.red.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: quantityController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Cantidad'),
+                decoration: InputDecoration(
+                  labelText: 'Cantidad',
+                  helperText: 'Máximo permitido para esta venta: $available',
+                ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: discountController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Descuento (%)'),
+                decoration: const InputDecoration(
+                  labelText: 'Descuento (%)',
+                ),
               ),
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: () {
                   final quantity =
                       int.tryParse(quantityController.text.trim()) ?? 1;
+
                   final discountRateBps =
                       percentToBps(discountController.text.trim());
-                  final available = line.quantity;
-                  if (quantity > available) {
+
+                  if (quantity < 1) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
+                      const SnackBar(
                         content: Text(
-                          'No puedes agregar más de $available unidades. Stock disponible: $available',
+                          'La cantidad debe ser como mínimo 1.',
                         ),
                       ),
                     );
                     return;
                   }
+
+                  if (quantity > available) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'No puedes vender más de $available unidades.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
                   setState(() {
-                    final index =
-                        _lines.indexWhere((item) => item.itemId == line.itemId);
+                    final index = _lines.indexWhere(
+                      (item) => item.itemId == line.itemId,
+                    );
+
                     if (index >= 0) {
                       _lines[index] = _lines[index].copyWith(
-                        quantity: quantity < 1 ? 1 : quantity,
+                        quantity: quantity,
                         discountRateBps: discountRateBps.clamp(0, 10000),
                       );
+
                       _dirty = true;
                     }
                   });
+
                   Navigator.of(context).pop();
                 },
                 child: const Text('Guardar línea'),
               ),
+              const SizedBox(height: 8),
             ],
           ),
         );
       },
     );
+
+    quantityController.dispose();
+    discountController.dispose();
   }
 
   Future<void> _save() async {
@@ -418,7 +501,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                     child: ListTile(
                       title: Text(line.productName),
                       subtitle: Column(
-                        cross: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
                             '${line.productCode} · Cantidad: ${line.quantity} · IVA: ${bpsToPercentText(line.taxRateBps)}%\n'
