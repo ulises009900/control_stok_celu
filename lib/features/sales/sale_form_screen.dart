@@ -418,7 +418,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                     child: ListTile(
                       title: Text(line.productName),
                       subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        cross: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
                             '${line.productCode} · Cantidad: ${line.quantity} · IVA: ${bpsToPercentText(line.taxRateBps)}%\n'
