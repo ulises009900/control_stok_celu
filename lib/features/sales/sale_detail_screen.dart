@@ -1,5 +1,6 @@
 import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -114,6 +115,9 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
               const SizedBox(height: 8),
               _Line(label: 'ID', value: sale.id),
               _Line(label: 'Estado', value: sale.status),
+              _Line(label: 'Pago', value: _paymentMethodLabel(sale.paymentMethod)),
+              if ((sale.sellerName ?? '').isNotEmpty)
+                _Line(label: 'Vendedor', value: sale.sellerName!),
               _Line(
                   label: 'Fecha',
                   value: _formatDate(sale.confirmedAt ?? sale.createdAt)),
@@ -122,8 +126,11 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
               _Line(
                   label: 'Descuento', value: _formatMoney(sale.discountCents)),
               _Line(label: 'Total', value: _formatMoney(sale.totalCents)),
-              _Line(label: 'Costo total', value: _formatMoney(totalCostCents)),
-              _Line(label: 'Ganancia', value: _formatMoney(sale.profitCents)),
+              if (ref.watch(isAdminProvider)) ...<Widget>[
+                _Line(
+                    label: 'Costo total', value: _formatMoney(totalCostCents)),
+                _Line(label: 'Ganancia', value: _formatMoney(sale.profitCents)),
+              ],
               if ((detail.notes ?? '').trim().isNotEmpty)
                 _Line(label: 'Notas', value: detail.notes!),
               const SizedBox(height: 12),
@@ -209,4 +216,14 @@ String _formatDate(DateTime value) {
   final day = local.day.toString().padLeft(2, '0');
   final month = local.month.toString().padLeft(2, '0');
   return '$day/$month/${local.year}';
+}
+
+String _paymentMethodLabel(String value) {
+  switch (value) {
+    case 'cash': return 'Efectivo';
+    case 'transfer': return 'Transferencia';
+    case 'card': return 'Tarjeta';
+    case 'current_account': return 'Cuenta corriente';
+    default: return value;
+  }
 }

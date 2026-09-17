@@ -1159,7 +1159,8 @@ class DriftStockRepository implements StockRepository {
       '''
       SELECT
         COUNT(*) AS sales_count,
-        COALESCE(SUM(total_cents), 0) AS revenue_cents
+        COALESCE(SUM(total_cents), 0) AS revenue_cents,
+        COALESCE(SUM(CASE WHEN payment_method = 'current_account' THEN total_cents ELSE 0 END), 0) AS current_account_balance_cents
       FROM sales
       WHERE customer_id = ?
         AND status = 'sold'
@@ -1219,6 +1220,8 @@ class DriftStockRepository implements StockRepository {
       reservationsCount: reservationsRow.read<int>('reservations_count'),
       revenueCents: revenueCents,
       averageTicketCents: salesCount > 0 ? revenueCents ~/ salesCount : 0,
+      currentAccountBalanceCents:
+          salesRow.read<int>('current_account_balance_cents'),
       history: history
           .map(
             (row) => CustomerHistoryItem(
@@ -1264,7 +1267,9 @@ class DriftStockRepository implements StockRepository {
                 createdAt: input.createdAt.toUtc(),
                 updatedAt: now,
               ),
-            );
+          );
+        await _writeSaleTraceability(input.saleId, input.paymentMethod,
+            input.sellerId, input.sellerName);
       } else {
         await (_db.update(_db.sales)..where((t) => t.id.equals(input.saleId)))
             .write(
@@ -1274,6 +1279,8 @@ class DriftStockRepository implements StockRepository {
             updatedAt: Value(now),
           ),
         );
+        await _writeSaleTraceability(input.saleId, input.paymentMethod,
+            input.sellerId, input.sellerName);
         await (_db.delete(_db.saleItems)
               ..where((t) => t.saleId.equals(input.saleId)))
             .go();
@@ -1401,6 +1408,7 @@ class DriftStockRepository implements StockRepository {
         s.created_at,
         s.updated_at,
         s.confirmed_at
+        ,s.payment_method, s.seller_id, s.seller_name
       FROM sales s
       LEFT JOIN customers c ON c.id = s.customer_id
       LEFT JOIN sale_items si ON si.sale_id = s.id
@@ -1438,6 +1446,9 @@ class DriftStockRepository implements StockRepository {
         s.created_at,
         s.updated_at,
         s.confirmed_at,
+        s.payment_method,
+        s.seller_id,
+        s.seller_name,
         s.notes,
         s.reservation_id
       FROM sales s
@@ -2690,6 +2701,9 @@ class DriftStockRepository implements StockRepository {
           createdAt: confirmedAt,
           customerId: draft.sale.customerId,
           notes: draft.notes,
+          paymentMethod: draft.sale.paymentMethod,
+          sellerId: draft.sale.sellerId,
+          sellerName: draft.sale.sellerName,
           lines: draft.lines
               .map(
                 (line) => DirectSaleLineInput(
@@ -2944,6 +2958,8 @@ class DriftStockRepository implements StockRepository {
               confirmedAt: Value(input.createdAt.toUtc()),
             ),
           );
+      await _writeSaleTraceability(input.saleId, input.paymentMethod,
+          input.sellerId, input.sellerName);
 
       for (final line in input.lines) {
         if (line.quantity <= 0) {
@@ -5141,6 +5157,24 @@ class DriftStockRepository implements StockRepository {
       createdAt: _readDateTimeFromRow(row, 'created_at'),
       updatedAt: _readNullableDateTimeFromRow(row, 'updated_at'),
       confirmedAt: _readNullableDateTimeFromRow(row, 'confirmed_at'),
+      paymentMethod: row.readNullable<String>('payment_method') ?? 'cash',
+      sellerId: row.readNullable<String>('seller_id'),
+      sellerName: row.readNullable<String>('seller_name'),
+    );
+  }
+
+  /// Estas columnas se mantienen deliberadamente con SQL crudo para que la
+  /// migración sea compatible con instalaciones que ya tienen la base Drift
+  /// anterior; el sync las transporta como parte de la fila de ventas.
+  Future<void> _writeSaleTraceability(
+    String saleId,
+    String paymentMethod,
+    String? sellerId,
+    String? sellerName,
+  ) {
+    return _db.customStatement(
+      'UPDATE sales SET payment_method = ?, seller_id = ?, seller_name = ? WHERE id = ?',
+      <Object?>[paymentMethod, sellerId, sellerName, saleId],
     );
   }
 

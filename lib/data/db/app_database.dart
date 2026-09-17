@@ -323,6 +323,8 @@ class ExpenseCategories extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get createdAt => dateTime().nullable()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -346,6 +348,90 @@ class Expenses extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Turno de caja: representa el período entre una apertura y un cierre de
+/// caja para un dispositivo/usuario determinado. El arqueo (differenceCents)
+/// se calcula comparando lo contado al cerrar contra lo esperado según el
+/// monto de apertura, los movimientos manuales y las ventas/gastos del período.
+class CashSessions extends Table {
+  TextColumn get id => text()();
+  TextColumn get deviceId => text()();
+  TextColumn get userId => text().nullable()();
+  TextColumn get userName => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('open'))();
+  IntColumn get openingCents => integer().withDefault(const Constant(0))();
+  IntColumn get expectedClosingCents => integer().nullable()();
+  IntColumn get countedClosingCents => integer().nullable()();
+  IntColumn get differenceCents => integer().nullable()();
+  TextColumn get openingNotes => text().nullable()();
+  TextColumn get closingNotes => text().nullable()();
+  DateTimeColumn get openedAt => dateTime()();
+  DateTimeColumn get closedAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+        "CHECK (status IN ('open', 'closed'))",
+      ];
+}
+
+/// Movimiento manual de efectivo (ingreso o egreso) dentro de un turno de
+/// caja. Las ventas y gastos NO generan filas acá: se contabilizan
+/// directamente desde sus propias tablas al calcular el arqueo.
+class CashMovements extends Table {
+  TextColumn get id => text()();
+  TextColumn get sessionId => text().references(CashSessions, #id)();
+  TextColumn get type => text()();
+  IntColumn get amountCents => integer()();
+  TextColumn get description => text().nullable()();
+  TextColumn get deviceId => text()();
+  TextColumn get userId => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+
+  @override
+  List<String> get customConstraints => const [
+        "CHECK (type IN ('income', 'expense'))",
+        'CHECK (amount_cents > 0)',
+      ];
+}
+
+/// Cursores de sincronización con el backend (uno por tabla sincronizable).
+/// `lastPushedAt`/`lastPulledAt` guardan la marca de tiempo (updated_at
+/// remoto) de la última fila enviada/recibida exitosamente para esa tabla.
+class SyncCursors extends Table {
+  TextColumn get entityTable => text()();
+  DateTimeColumn get lastPulledAt => dateTime().nullable()();
+  DateTimeColumn get lastPushedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {entityTable};
+}
+
+/// Copia local de una cuenta de usuario del servidor (jefe/vendedores),
+/// guardada la primera vez que ese usuario inicia sesión con conexión.
+/// Permite volver a iniciar sesión sin conexión en ese mismo dispositivo:
+/// `passwordHash`/`passwordSalt` son solo para verificación local (nunca se
+/// comparan contra el servidor ni viajan por red).
+class CachedAccounts extends Table {
+  TextColumn get username => text()();
+  TextColumn get serverUrl => text()();
+  TextColumn get passwordSalt => text()();
+  TextColumn get passwordHash => text()();
+  TextColumn get role => text()();
+  TextColumn get displayName => text().nullable()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {username};
 }
 
 class PriceHistory extends Table {
@@ -490,12 +576,16 @@ class AuditLogs extends Table {
     ChecklistItems,
     Settings,
     AuditLogs,
+    CashSessions,
+    CashMovements,
+    SyncCursors,
+    CachedAccounts,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
-  static const int currentSchemaVersion = 4;
+  static const int currentSchemaVersion = 7;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -543,10 +633,53 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  Future<void> _ensureExpenseCategoriesSchema() async {
+    final tableExists = await customSelect(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'expense_categories' LIMIT 1",
+    ).get();
+
+    if (tableExists.isEmpty) {
+      await customStatement('''
+        CREATE TABLE IF NOT EXISTS expense_categories (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER,
+          updated_at INTEGER
+        );
+      ''');
+      return;
+    }
+
+    final columns =
+        await customSelect('PRAGMA table_info(expense_categories);').get();
+    final columnNames = columns.map((row) => row.read<String>('name')).toSet();
+
+    if (!columnNames.contains('created_at')) {
+      await customStatement(
+        'ALTER TABLE expense_categories ADD COLUMN created_at INTEGER;',
+      );
+    }
+    if (!columnNames.contains('updated_at')) {
+      await customStatement(
+        'ALTER TABLE expense_categories ADD COLUMN updated_at INTEGER;',
+      );
+    }
+    await customStatement(
+      "UPDATE expense_categories SET created_at = strftime('%s','now') WHERE created_at IS NULL;",
+    );
+    await customStatement(
+      "UPDATE expense_categories SET updated_at = strftime('%s','now') WHERE updated_at IS NULL;",
+    );
+  }
+
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
+          await customStatement("ALTER TABLE sales ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'cash';");
+          await customStatement('ALTER TABLE sales ADD COLUMN seller_id TEXT;');
+          await customStatement('ALTER TABLE sales ADD COLUMN seller_name TEXT;');
           await customStatement(
             'CREATE INDEX IF NOT EXISTS idx_products_code ON products (internal_code);',
           );
@@ -573,6 +706,12 @@ class AppDatabase extends _$AppDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS idx_customers_document ON customers (document);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_cash_movements_session ON cash_movements (session_id);',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_cash_sessions_device ON cash_sessions (device_id, status);',
           );
           await customStatement('''
             CREATE VIRTUAL TABLE IF NOT EXISTS products_fts USING fts5(
@@ -636,8 +775,28 @@ class AppDatabase extends _$AppDatabase {
               'CREATE INDEX IF NOT EXISTS idx_customers_document ON customers (document);',
             );
           }
+          if (from < 7) {
+            await customStatement("ALTER TABLE sales ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'cash';");
+            await customStatement('ALTER TABLE sales ADD COLUMN seller_id TEXT;');
+            await customStatement('ALTER TABLE sales ADD COLUMN seller_name TEXT;');
+          }
           if (from < 4) {
             await _ensureExpensesSchema();
+          }
+          if (from < 5) {
+            await m.createTable(cashSessions);
+            await m.createTable(cashMovements);
+            await m.createTable(syncCursors);
+            await _ensureExpenseCategoriesSchema();
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_cash_movements_session ON cash_movements (session_id);',
+            );
+            await customStatement(
+              'CREATE INDEX IF NOT EXISTS idx_cash_sessions_device ON cash_sessions (device_id, status);',
+            );
+          }
+          if (from < 6) {
+            await m.createTable(cachedAccounts);
           }
         },
         beforeOpen: (details) async {

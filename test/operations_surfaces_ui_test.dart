@@ -1,5 +1,6 @@
 import 'package:control_stok_celu/data/db/app_database.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/features/customers/customer_detail_screen.dart';
 import 'package:control_stok_celu/features/customers/customer_form_screen.dart';
 import 'package:control_stok_celu/features/customers/customers_screen.dart';
@@ -90,7 +91,13 @@ void main() {
   Future<void> pumpApp(WidgetTester tester, AppDatabase db) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          // Estas pruebas ejercitan pantallas/acciones de administrador
+          // (edición de productos/clientes, reportes, etc.); simulamos ese
+          // rol y evitamos tocar el almacenamiento seguro real.
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: MaterialApp.router(routerConfig: buildRouter()),
       ),
     );

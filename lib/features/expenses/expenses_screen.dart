@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:control_stok_celu/core/errors/app_exception.dart';
+import 'package:control_stok_celu/core/period_range.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
+import 'package:control_stok_celu/features/cashbox/cashbox_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -380,6 +382,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               );
             },
           ),
+          _CashboxSummaryStrip(
+            range: resolveExpensePeriodRange(_period),
+          ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
@@ -441,6 +446,86 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   String _formatMoney(int cents) {
+    final dollars = cents / 100;
+    return '\$${dollars.toStringAsFixed(2)}';
+  }
+}
+
+/// Franja que muestra el movimiento de caja (ingresos/egresos manuales y
+/// diferencias de arqueo) del mismo período que se está viendo en Gastos,
+/// para tener una foto completa de gastos + ganancias + caja.
+class _CashboxSummaryStrip extends ConsumerWidget {
+  const _CashboxSummaryStrip({required this.range});
+
+  final DateRange range;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(cashboxPeriodStatsProvider(range));
+    return statsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (stats) {
+        if (stats.sessionsCount == 0) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('Caja del período',
+                    style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 8),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _cashboxTile(
+                          context, 'Turnos', '${stats.sessionsCount}'),
+                    ),
+                    Expanded(
+                      child: _cashboxTile(context, 'Ingresos manuales',
+                          _formatCashboxMoney(stats.manualIncomeCents)),
+                    ),
+                    Expanded(
+                      child: _cashboxTile(context, 'Egresos manuales',
+                          _formatCashboxMoney(stats.manualExpenseCents)),
+                    ),
+                    Expanded(
+                      child: _cashboxTile(context, 'Diferencia',
+                          _formatCashboxMoney(stats.totalDifferenceCents)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _cashboxTile(BuildContext context, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 4),
+        Text(value),
+      ],
+    );
+  }
+
+  String _formatCashboxMoney(int cents) {
     final dollars = cents / 100;
     return '\$${dollars.toStringAsFixed(2)}';
   }

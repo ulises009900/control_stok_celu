@@ -46,10 +46,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final TextEditingController _taxController = TextEditingController(text: '0');
   final TextEditingController _discountController =
       TextEditingController(text: '0');
-  final TextEditingController _supplierController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
+  final FocusNode _stockMinFocusNode = FocusNode();
+  final FocusNode _costFocusNode = FocusNode();
+  final FocusNode _salePriceFocusNode = FocusNode();
+  final FocusNode _taxFocusNode = FocusNode();
+  final FocusNode _discountFocusNode = FocusNode();
+
   String? _categoryId;
+  String? _supplierId;
+  List<SupplierListItem> _suppliers = <SupplierListItem>[];
   bool _offer = false;
   bool _clearance = false;
   bool _active = true;
@@ -67,6 +74,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   void initState() {
     super.initState();
     _attachDirtyListeners();
+    _attachClearZeroOnFocus(_stockMinFocusNode, _stockMinController);
+    _attachClearZeroOnFocus(_costFocusNode, _costController);
+    _attachClearZeroOnFocus(_salePriceFocusNode, _salePriceController);
+    _attachClearZeroOnFocus(_taxFocusNode, _taxController);
+    _attachClearZeroOnFocus(_discountFocusNode, _discountController);
     _load();
   }
 
@@ -90,9 +102,32 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _profitPercentController.dispose();
     _taxController.dispose();
     _discountController.dispose();
-    _supplierController.dispose();
     _notesController.dispose();
+    _stockMinFocusNode.dispose();
+    _costFocusNode.dispose();
+    _salePriceFocusNode.dispose();
+    _taxFocusNode.dispose();
+    _discountFocusNode.dispose();
     super.dispose();
+  }
+
+  /// Selecciona el valor por defecto (ej. "0" o "0.00") al enfocar el campo
+  /// para que desaparezca apenas el usuario empieza a escribir.
+  void _attachClearZeroOnFocus(
+      FocusNode focusNode, TextEditingController controller) {
+    focusNode.addListener(() {
+      if (!focusNode.hasFocus) {
+        return;
+      }
+      final isDefaultZero =
+          double.tryParse(controller.text.replaceAll(',', '.')) == 0;
+      if (isDefaultZero) {
+        controller.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: controller.text.length,
+        );
+      }
+    });
   }
 
   Future<void> _load() async {
@@ -104,6 +139,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     try {
       _categories =
           await ref.read(listCategoriesUseCaseProvider)(includeInactive: false);
+      _suppliers =
+          await ref.read(listSuppliersUseCaseProvider)(includeInactive: false);
       _suspendDirtyTracking = true;
       if (widget.isEdit) {
         final detail =
@@ -131,7 +168,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         );
         _taxController.text = bpsToPercentText(detail.taxRateBps);
         _discountController.text = detail.defaultDiscountBps.toString();
-        _supplierController.text = detail.supplierId ?? '';
+        _supplierId = detail.supplierId;
         _notesController.text = detail.notes ?? '';
         _active = detail.product.isActive;
         _offer = detail.product.isOffer;
@@ -192,7 +229,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       defaultDiscountBps: int.tryParse(_discountController.text.trim()) ?? 0,
       isOffer: _offer,
       isClearance: _clearance,
-      supplierId: _readOptional(_supplierController),
+      supplierId: _supplierId,
       notes: _readOptional(_notesController),
       isActive: _active,
     );
@@ -323,30 +360,43 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       ),
                       const SizedBox(height: 16),
                       _sectionTitle('Clasificación'),
-                      DropdownButtonFormField<String?>(
-                        initialValue: _categoryId,
-                        items: <DropdownMenuItem<String?>>[
-                          const DropdownMenuItem<String?>(
-                              value: null, child: Text('Sin categoría')),
-                          ..._categories.map(
-                            (category) => DropdownMenuItem<String?>(
-                              value: category.id,
-                              child: Text(category.name),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: DropdownButtonFormField<String?>(
+                              initialValue: _categoryId,
+                              items: <DropdownMenuItem<String?>>[
+                                const DropdownMenuItem<String?>(
+                                    value: null, child: Text('Sin categoría')),
+                                ..._categories.map(
+                                  (category) => DropdownMenuItem<String?>(
+                                    value: category.id,
+                                    child: Text(category.name),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) => setState(() {
+                                _categoryId = value;
+                                _categoryInlineError = null;
+                                _dirty = true;
+                              }),
+                              decoration: InputDecoration(
+                                labelText: 'Categoría',
+                                errorText: _categoryInlineError,
+                              ),
                             ),
                           ),
+                          IconButton(
+                            tooltip: 'Nueva categoría',
+                            onPressed: _addCategoryQuickly,
+                            icon: const Icon(Icons.add_circle_outline),
+                          ),
                         ],
-                        onChanged: (value) => setState(() {
-                          _categoryId = value;
-                          _categoryInlineError = null;
-                          _dirty = true;
-                        }),
-                        decoration: InputDecoration(
-                          labelText: 'Categoría',
-                          errorText: _categoryInlineError,
-                        ),
                       ),
                       TextFormField(
                         controller: _subcategoryController,
+                        onChanged: (_) => setState(() => _dirty = true),
                         decoration:
                             const InputDecoration(labelText: 'Subcategoría'),
                       ),
@@ -392,6 +442,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                           'El stock se gestiona por movimientos. No se edita directo acá.'),
                       TextFormField(
                         controller: _stockMinController,
+                        focusNode: _stockMinFocusNode,
                         keyboardType: TextInputType.number,
                         decoration:
                             const InputDecoration(labelText: 'Stock mínimo'),
@@ -413,6 +464,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       _sectionTitle('Precio y comercial'),
                       TextFormField(
                         controller: _costController,
+                        focusNode: _costFocusNode,
                         style: const TextStyle(color: Colors.black),
                         onChanged: (_) {
                           _recalculateSalePriceFromProfit();
@@ -431,6 +483,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       ),
                       TextFormField(
                         controller: _salePriceController,
+                        focusNode: _salePriceFocusNode,
                         style: const TextStyle(color: Colors.green),
                         onChanged: (_) => setState(() => _dirty = true),
                         keyboardType: const TextInputType.numberWithOptions(
@@ -459,6 +512,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       ),
                       TextFormField(
                         controller: _taxController,
+                        focusNode: _taxFocusNode,
                         onChanged: (_) => setState(() => _dirty = true),
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
@@ -467,6 +521,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       ),
                       TextFormField(
                         controller: _discountController,
+                        focusNode: _discountFocusNode,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
                             labelText: 'Descuento predeterminado (bps)'),
@@ -485,10 +540,36 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       ),
                       const SizedBox(height: 16),
                       _sectionTitle('Otros'),
-                      TextFormField(
-                        controller: _supplierController,
-                        decoration:
-                            const InputDecoration(labelText: 'Proveedor (id)'),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: DropdownButtonFormField<String?>(
+                              initialValue: _supplierId,
+                              items: <DropdownMenuItem<String?>>[
+                                const DropdownMenuItem<String?>(
+                                    value: null, child: Text('Sin proveedor')),
+                                ..._suppliers.map(
+                                  (supplier) => DropdownMenuItem<String?>(
+                                    value: supplier.id,
+                                    child: Text(supplier.name),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) => setState(() {
+                                _supplierId = value;
+                                _dirty = true;
+                              }),
+                              decoration:
+                                  const InputDecoration(labelText: 'Proveedor'),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Nuevo proveedor',
+                            onPressed: _addSupplierQuickly,
+                            icon: const Icon(Icons.add_circle_outline),
+                          ),
+                        ],
                       ),
                       TextFormField(
                         controller: _notesController,
@@ -557,6 +638,140 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(title, style: Theme.of(context).textTheme.titleMedium),
     );
+  }
+
+  Future<void> _addCategoryQuickly() async {
+    final nameController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nueva categoría'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: nameController,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Nombre *'),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'El nombre es obligatorio'
+                  : null,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop(nameController.text.trim());
+              },
+              child: const Text('Crear'),
+            ),
+          ],
+        );
+      },
+    );
+    nameController.dispose();
+    if (name == null || name.isEmpty || !mounted) {
+      return;
+    }
+
+    final id = 'cat_${DateTime.now().microsecondsSinceEpoch}';
+    try {
+      await ref.read(createCategoryUseCaseProvider)(
+        CategoryUpsertInput(id: id, name: name, isActive: true),
+      );
+      final categories =
+          await ref.read(listCategoriesUseCaseProvider)(includeInactive: false);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _categories = categories;
+        _categoryId = id;
+        _dirty = true;
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No pudimos crear la categoría. $e')),
+      );
+    }
+  }
+
+  Future<void> _addSupplierQuickly() async {
+    final nameController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nuevo proveedor'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: nameController,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Nombre *'),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'El nombre es obligatorio'
+                  : null,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) {
+                  return;
+                }
+                Navigator.of(dialogContext).pop(nameController.text.trim());
+              },
+              child: const Text('Crear'),
+            ),
+          ],
+        );
+      },
+    );
+    nameController.dispose();
+    if (name == null || name.isEmpty || !mounted) {
+      return;
+    }
+
+    final id = 'sup_${DateTime.now().microsecondsSinceEpoch}';
+    try {
+      await ref.read(createSupplierUseCaseProvider)(
+        SupplierUpsertInput(id: id, name: name, isActive: true),
+      );
+      final suppliers =
+          await ref.read(listSuppliersUseCaseProvider)(includeInactive: false);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _suppliers = suppliers;
+        _supplierId = id;
+        _dirty = true;
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No pudimos crear el proveedor. $e')),
+      );
+    }
   }
 
   Future<void> _scanBarcodeWithCamera() async {
@@ -666,7 +881,6 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       _profitPercentController,
       _taxController,
       _discountController,
-      _supplierController,
       _notesController,
     ];
 

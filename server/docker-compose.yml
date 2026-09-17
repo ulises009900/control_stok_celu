@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: control_stok_celu_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: control_stok
+      POSTGRES_PASSWORD: control_stok_password
+      POSTGRES_DB: control_stok_celu
+    ports:
+      # Postgres escucha en 3433 en el host, aunque adentro del contenedor
+      # sigue usando su puerto estandar 5432.
+      - "3433:5432"
+    volumes:
+      - control_stok_celu_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U control_stok -d control_stok_celu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    container_name: control_stok_celu_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      API_PORT: "4000"
+      # Dentro de la red de docker compose, el host de Postgres es el
+      # nombre del servicio ("postgres") y su puerto interno sigue siendo
+      # 5432 (el 3433 es solo el mapeo hacia afuera del contenedor).
+      DATABASE_URL: postgres://control_stok:control_stok_password@postgres:5432/control_stok_celu
+      JWT_SECRET: ${JWT_SECRET:-cambiar-este-secreto-en-produccion}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-30d}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-jefe}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-cambiar123}
+    ports:
+      - "4000:4000"
+
+volumes:
+  control_stok_celu_pgdata:

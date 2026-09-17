@@ -4,9 +4,11 @@ import 'dart:io';
 import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/data/db/app_database.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -219,6 +221,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = ref.watch(isAdminProvider);
+    if (!isAdmin) {
+      return const _VendorSettingsView();
+    }
     return Scaffold(
       appBar: AppBar(
         leading: Navigator.canPop(context) ? const BackButton() : null,
@@ -251,6 +257,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                       labelText: 'Días para próximo vencimiento'),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Sincronización',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/settings/sync'),
+                  icon: const Icon(Icons.sync_outlined),
+                  label: const Text('Conectar con el servidor'),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -294,8 +311,93 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       : const Icon(Icons.save_outlined),
                   label: const Text('Guardar configuración'),
                 ),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await ref.read(syncControllerProvider.notifier).logout();
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Cerrar sesión'),
+                ),
               ],
             ),
+    );
+  }
+}
+
+/// Vista reducida de Configuración para el rol Vendedor/Empleado: sin
+/// acceso a los datos del negocio ni al backup, solo información de la
+/// cuenta, sincronizar y cerrar sesión.
+class _VendorSettingsView extends ConsumerWidget {
+  const _VendorSettingsView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final credentials = ref.watch(syncCredentialsProvider).valueOrNull;
+    final syncState = ref.watch(syncControllerProvider);
+    return Scaffold(
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Configuración'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    credentials?.displayName ?? credentials?.username ?? '',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const Text('Vendedor'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: syncState.isLoading
+                ? null
+                : () => ref.read(syncControllerProvider.notifier).syncNow(),
+            icon: syncState.isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+            label: const Text('Sincronizar ahora'),
+          ),
+          const SizedBox(height: 8),
+          syncState.when(
+            data: (result) => result == null
+                ? const SizedBox.shrink()
+                : Text(
+                    'Última sincronización: ${result.pushed} enviados, '
+                    '${result.pulled} recibidos.',
+                  ),
+            loading: () => const SizedBox.shrink(),
+            error: (error, _) => Text(
+              'Error al sincronizar: $error',
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: () async {
+              await ref.read(syncControllerProvider.notifier).logout();
+            },
+            icon: const Icon(Icons.logout),
+            label: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
     );
   }
 }

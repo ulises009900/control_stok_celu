@@ -1,4 +1,6 @@
+import 'package:control_stok_celu/core/period_range.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
+import 'package:control_stok_celu/features/cashbox/cashbox_providers.dart';
 import 'package:control_stok_celu/features/statistics/dashboard_providers.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -214,6 +216,15 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                                 ),
                               ],
                             ),
+                          ),
+                          const SizedBox(height: 16),
+                          _CashboxSection(
+                            range: resolveDashboardPeriodRange(
+                              state.query.period,
+                              from: state.query.from,
+                              to: state.query.to,
+                            ),
+                            onOpenCashbox: () => context.push('/caja'),
                           ),
                           const SizedBox(height: 16),
                           _SectionCard(
@@ -661,6 +672,45 @@ class _AlertSection extends StatelessWidget {
                   )
                   .toList(),
             ),
+    );
+  }
+}
+
+class _CashboxSection extends ConsumerWidget {
+  const _CashboxSection({required this.range, required this.onOpenCashbox});
+
+  final DateRange range;
+  final VoidCallback onOpenCashbox;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(cashboxPeriodStatsProvider(range));
+    return _SectionCard(
+      title: 'Caja',
+      actionLabel: 'Abrir caja',
+      onActionTap: onOpenCashbox,
+      child: statsAsync.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (error, _) => Text('No pudimos cargar la caja. $error'),
+        data: (stats) => _InfoTable(
+          rows: <_InfoRowData>[
+            _InfoRowData('Turnos en el período', '${stats.sessionsCount}'),
+            _InfoRowData('Turnos abiertos', '${stats.openSessionsCount}'),
+            _InfoRowData('Turnos cerrados', '${stats.closedSessionsCount}'),
+            _InfoRowData(
+                'Ingresos manuales', _formatMoney(stats.manualIncomeCents)),
+            _InfoRowData(
+                'Egresos manuales', _formatMoney(stats.manualExpenseCents)),
+            _InfoRowData('Diferencia acumulada (arqueo)',
+                _formatMoney(stats.totalDifferenceCents)),
+            _InfoRowData('Turnos con diferencia',
+                '${stats.closedSessionsWithDifferenceCount}'),
+          ],
+        ),
+      ),
     );
   }
 }

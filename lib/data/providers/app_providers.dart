@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:control_stok_celu/data/backup/local_backup_service.dart';
@@ -9,6 +10,7 @@ import 'package:control_stok_celu/domain/stock/stock_use_cases.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 final appSessionRevisionProvider = StateProvider<int>((ref) => 0);
 
@@ -17,6 +19,29 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
   ref.onDispose(db.close);
   return db;
+});
+
+/// Identificador estable de este dispositivo/instalación, usado para
+/// distinguir cajas y filas sincronizadas por dispositivo. Se genera una
+/// vez y se persiste en la tabla `settings`.
+final deviceIdProvider = FutureProvider<String>((ref) async {
+  final db = ref.watch(appDatabaseProvider);
+  const key = 'device_id';
+  final existing =
+      await (db.select(db.settings)..where((t) => t.key.equals(key)))
+          .getSingleOrNull();
+  if (existing != null) {
+    return jsonDecode(existing.valueJson) as String;
+  }
+  final newId = const Uuid().v4();
+  await db.into(db.settings).insertOnConflictUpdate(
+        SettingsCompanion.insert(
+          key: key,
+          valueJson: jsonEncode(newId),
+          updatedAt: DateTime.now().toUtc(),
+        ),
+      );
+  return newId;
 });
 
 class AppDatabaseLifecycle {

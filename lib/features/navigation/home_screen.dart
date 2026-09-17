@@ -1,24 +1,36 @@
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    const items = <_HomeItem>[
-      _HomeItem('Stock', '/stock', Icons.inventory_2_outlined),
-      _HomeItem('Ventas', '/sales', Icons.point_of_sale_outlined),
-      _HomeItem('Reservas', '/reservations', Icons.bookmark_outline),
-      _HomeItem('Productos', '/productos', Icons.shopping_bag_outlined),
-      _HomeItem('Proveedores', '/proveedores', Icons.local_shipping_outlined),
-      _HomeItem('Clientes', '/customers', Icons.people_outline),
-      _HomeItem('Gastos', '/gastos', Icons.receipt_long_outlined),
-      _HomeItem('Estadísticas', '/estadisticas', Icons.bar_chart_outlined),
-      _HomeItem('Reportes', '/reports', Icons.summarize_outlined),
-      _HomeItem('Notas', '/notes', Icons.note_outlined),
-      _HomeItem('Tareas', '/tasks', Icons.checklist_outlined),
-      _HomeItem('Configuración', '/settings', Icons.settings_outlined),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isAdmin = ref.watch(isAdminProvider);
+    final items = <_HomeItem>[
+      const _HomeItem('Stock', '/stock', Icons.inventory_2_outlined),
+      const _HomeItem('Ventas', '/sales', Icons.point_of_sale_outlined),
+      const _HomeItem('Caja', '/caja', Icons.account_balance_wallet_outlined),
+      const _HomeItem('Reservas', '/reservations', Icons.bookmark_outline),
+      const _HomeItem('Productos', '/productos', Icons.shopping_bag_outlined),
+      if (isAdmin)
+        const _HomeItem(
+            'Proveedores', '/proveedores', Icons.local_shipping_outlined),
+      const _HomeItem('Clientes', '/customers', Icons.people_outline),
+      if (isAdmin)
+        const _HomeItem('Empleados', '/empleados', Icons.badge_outlined),
+      if (isAdmin)
+        const _HomeItem('Gastos', '/gastos', Icons.receipt_long_outlined),
+      if (isAdmin)
+        const _HomeItem(
+            'Estadísticas', '/estadisticas', Icons.bar_chart_outlined),
+      if (isAdmin)
+        const _HomeItem('Reportes', '/reports', Icons.summarize_outlined),
+      const _HomeItem('Notas', '/notes', Icons.note_outlined),
+      const _HomeItem('Tareas', '/tasks', Icons.checklist_outlined),
+      const _HomeItem('Configuración', '/settings', Icons.settings_outlined),
     ];
 
     return Scaffold(

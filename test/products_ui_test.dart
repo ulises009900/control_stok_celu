@@ -1,6 +1,7 @@
-﻿import 'package:control_stok_celu/data/db/app_database.dart';
+import 'package:control_stok_celu/data/db/app_database.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:control_stok_celu/data/repositories/drift_stock_repository.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:control_stok_celu/features/categories/categories_screen.dart';
 import 'package:control_stok_celu/features/products/product_detail_screen.dart';
@@ -22,7 +23,10 @@ void main() {
     final db = AppDatabase(executor: NativeDatabase.memory());
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(home: ProductsScreen()),
       ),
     );
@@ -50,7 +54,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(home: ProductsScreen()),
       ),
     );
@@ -119,7 +126,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );
@@ -137,7 +147,10 @@ void main() {
     final db = AppDatabase(executor: NativeDatabase.memory());
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(home: ProductFormScreen(productId: null)),
       ),
     );
@@ -172,7 +185,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child:
             const MaterialApp(home: ProductFormScreen(productId: 'prd-edit-1')),
       ),
@@ -210,7 +226,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(
             home: ProductDetailScreen(productId: 'prd-active-1')),
       ),
@@ -254,7 +273,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(home: ProductFormScreen(productId: null)),
       ),
     );
@@ -290,7 +312,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(home: ProductFormScreen(productId: null)),
       ),
     );
@@ -320,7 +345,10 @@ void main() {
     final db = AppDatabase(executor: NativeDatabase.memory());
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(home: CategoriesScreen()),
       ),
     );
@@ -339,7 +367,10 @@ void main() {
     final db = AppDatabase(executor: NativeDatabase.memory());
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(home: ProductsScreen()),
       ),
     );
@@ -365,7 +396,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(home: CategoriesScreen()),
       ),
     );
@@ -394,7 +428,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: const MaterialApp(home: CategoriesScreen()),
       ),
     );

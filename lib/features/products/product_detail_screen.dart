@@ -1,4 +1,5 @@
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,21 +49,24 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = ref.watch(isAdminProvider);
     return Scaffold(
       appBar: AppBar(
         leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Detalle de producto'),
         actions: <Widget>[
-          IconButton(
-            tooltip: 'Editar',
-            onPressed: () =>
-                context.push('/productos/${widget.productId}/editar').then((_) {
-              setState(() {
-                _future = _load();
-              });
-            }),
-            icon: const Icon(Icons.edit_outlined),
-          ),
+          if (isAdmin)
+            IconButton(
+              tooltip: 'Editar',
+              onPressed: () => context
+                  .push('/productos/${widget.productId}/editar')
+                  .then((_) {
+                setState(() {
+                  _future = _load();
+                });
+              }),
+              icon: const Icon(Icons.edit_outlined),
+            ),
         ],
       ),
       body: FutureBuilder<ProductDetailView>(
@@ -154,16 +158,19 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   'Stock disponible', '${detail.product.stockAvailable}'),
               const SizedBox(height: 16),
               _sectionTitle(context, 'Precios'),
-              _readOnlyLine('Costo', _formatMoney(detail.product.costCents)),
+              if (isAdmin)
+                _readOnlyLine('Costo', _formatMoney(detail.product.costCents)),
               _readOnlyLine('Precio de venta',
                   _formatMoney(detail.product.salePriceCents)),
               _readOnlyLine(
                   'IVA', '${(detail.taxRateBps / 100).toStringAsFixed(2)}%'),
               _readOnlyLine('Descuento',
                   '${(detail.defaultDiscountBps / 100).toStringAsFixed(2)}%'),
-              _readOnlyLine(
-                  'Ganancia', _formatMoney(detail.estimatedProfitCents)),
-              _readOnlyLine('Margen', '${margin.toStringAsFixed(2)}%'),
+              if (isAdmin)
+                _readOnlyLine(
+                    'Ganancia', _formatMoney(detail.estimatedProfitCents)),
+              if (isAdmin)
+                _readOnlyLine('Margen', '${margin.toStringAsFixed(2)}%'),
               const SizedBox(height: 16),
               _sectionTitle(context, 'Lotes'),
               TextField(
@@ -190,8 +197,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         Text('Cantidad original: ${batch.quantityTotal}'),
                         Text(
                             'Disponible: ${batch.quantityAvailable} · Reservada: ${batch.quantityReserved}'),
-                        Text(
-                            'Costo unitario: ${_formatMoney(batch.unitCostCents)}'),
+                        if (isAdmin)
+                          Text(
+                              'Costo unitario: ${_formatMoney(batch.unitCostCents)}'),
                         Text(
                           batch.expiresAt == null
                               ? 'Vencimiento: Sin fecha'
@@ -219,29 +227,31 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   ),
                 ),
               const SizedBox(height: 24),
-              FilledButton.tonalIcon(
-                onPressed: () => _toggleActive(detail),
-                icon: Icon(detail.product.isActive
-                    ? Icons.pause_circle_outline
-                    : Icons.play_circle_outline),
-                label: Text(detail.product.isActive
-                    ? 'Desactivar producto'
-                    : 'Reactivar producto'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final changed = await context
-                      .push<bool>('/productos/${widget.productId}/movimiento');
-                  if (changed == true && mounted) {
-                    setState(() {
-                      _future = _load();
-                    });
-                  }
-                },
-                icon: const Icon(Icons.swap_horiz),
-                label: const Text('Agregar movimiento'),
-              ),
+              if (isAdmin)
+                FilledButton.tonalIcon(
+                  onPressed: () => _toggleActive(detail),
+                  icon: Icon(detail.product.isActive
+                      ? Icons.pause_circle_outline
+                      : Icons.play_circle_outline),
+                  label: Text(detail.product.isActive
+                      ? 'Desactivar producto'
+                      : 'Reactivar producto'),
+                ),
+              if (isAdmin) const SizedBox(height: 8),
+              if (isAdmin)
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final changed = await context.push<bool>(
+                        '/productos/${widget.productId}/movimiento');
+                    if (changed == true && mounted) {
+                      setState(() {
+                        _future = _load();
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.swap_horiz),
+                  label: const Text('Agregar movimiento'),
+                ),
             ],
           );
         },

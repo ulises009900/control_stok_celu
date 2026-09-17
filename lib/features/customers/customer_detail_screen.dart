@@ -81,6 +81,9 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
               _Line(
                   label: 'Ticket promedio',
                   value: _formatMoney(detail.averageTicketCents)),
+              _Line(
+                  label: 'Saldo cuenta corriente',
+                  value: _formatMoney(detail.currentAccountBalanceCents)),
               const SizedBox(height: 16),
               Text('Historial', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),

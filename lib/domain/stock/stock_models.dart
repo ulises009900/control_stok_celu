@@ -192,6 +192,9 @@ class CreateDirectSaleInput {
     required this.lines,
     this.customerId,
     this.notes,
+    this.paymentMethod = 'cash',
+    this.sellerId,
+    this.sellerName,
   });
 
   final String saleId;
@@ -199,6 +202,9 @@ class CreateDirectSaleInput {
   final List<DirectSaleLineInput> lines;
   final String? customerId;
   final String? notes;
+  final String paymentMethod;
+  final String? sellerId;
+  final String? sellerName;
 }
 
 class StockAdjustmentInput {
@@ -873,6 +879,9 @@ class SaleDraftUpsertInput {
     required this.lines,
     this.customerId,
     this.notes,
+    this.paymentMethod = 'cash',
+    this.sellerId,
+    this.sellerName,
   });
 
   final String saleId;
@@ -880,6 +889,9 @@ class SaleDraftUpsertInput {
   final List<SaleLineDraftInput> lines;
   final String? customerId;
   final String? notes;
+  final String paymentMethod;
+  final String? sellerId;
+  final String? sellerName;
 }
 
 class SaleListItem {
@@ -898,6 +910,9 @@ class SaleListItem {
     required this.createdAt,
     this.updatedAt,
     this.confirmedAt,
+    this.paymentMethod = 'cash',
+    this.sellerId,
+    this.sellerName,
   });
 
   final String id;
@@ -914,6 +929,9 @@ class SaleListItem {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final DateTime? confirmedAt;
+  final String paymentMethod;
+  final String? sellerId;
+  final String? sellerName;
 }
 
 class SaleLineView {
@@ -1088,6 +1106,7 @@ class CustomerDetailView {
     required this.reservationsCount,
     required this.revenueCents,
     required this.averageTicketCents,
+    required this.currentAccountBalanceCents,
     required this.history,
   });
 
@@ -1096,6 +1115,8 @@ class CustomerDetailView {
   final int reservationsCount;
   final int revenueCents;
   final int averageTicketCents;
+  /// Saldo pendiente: ventas confirmadas imputadas a cuenta corriente.
+  final int currentAccountBalanceCents;
   final List<CustomerHistoryItem> history;
 }
 

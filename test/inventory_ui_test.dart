@@ -1,6 +1,7 @@
 import 'package:control_stok_celu/data/db/app_database.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:control_stok_celu/data/repositories/drift_stock_repository.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:control_stok_celu/features/inventory/inventory_providers.dart';
 import 'package:control_stok_celu/features/inventory/inventory_screen.dart';
@@ -46,7 +47,10 @@ void main() {
   }) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: <Override>[appDatabaseProvider.overrideWithValue(db)],
+        overrides: <Override>[
+          appDatabaseProvider.overrideWithValue(db),
+          isAdminProvider.overrideWithValue(true),
+        ],
         child: MaterialApp.router(
           routerConfig: buildRouter(initialLocation: initialLocation),
         ),

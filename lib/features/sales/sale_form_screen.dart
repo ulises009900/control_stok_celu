@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:uuid/uuid.dart';
 
 class SaleFormScreen extends ConsumerStatefulWidget {
@@ -26,6 +28,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   bool _saving = false;
   String? _error;
   String? _customerId;
+  String _paymentMethod = 'cash';
   List<CustomerListItem> _customers = <CustomerListItem>[];
   final List<_EditableSaleLine> _lines = <_EditableSaleLine>[];
   DateTime _createdAt = DateTime.now().toUtc();
@@ -55,6 +58,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
         final detail =
             await ref.read(getSaleDetailUseCaseProvider)(widget.saleId!);
         _customerId = detail.sale.customerId;
+        _paymentMethod = detail.sale.paymentMethod;
         _notesController.text = detail.notes ?? '';
         _createdAt = detail.sale.createdAt;
         _lines
@@ -86,6 +90,91 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     }
   }
 
+  Future<void> _pickCustomer() async {
+    final searchController = TextEditingController();
+    final selected = await showModalBottomSheet<CustomerListItem>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final query = searchController.text.trim().toLowerCase();
+            final filtered = query.isEmpty
+                ? _customers
+                : _customers.where((customer) {
+                    return customer.name.toLowerCase().contains(query) ||
+                        (customer.phone?.toLowerCase().contains(query) ??
+                            false) ||
+                        (customer.document?.toLowerCase().contains(query) ??
+                            false);
+                  }).toList();
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: SizedBox(
+                height: 460,
+                child: Column(
+                  children: <Widget>[
+                    Text('Seleccionar cliente',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: searchController,
+                      onChanged: (_) => setModalState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Buscar por nombre, teléfono o documento',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('Sin resultados'))
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final customer = filtered[index];
+                                return ListTile(
+                                  title: Text(customer.name),
+                                  subtitle: Text(
+                                    <String>[
+                                      if (customer.phone != null &&
+                                          customer.phone!.isNotEmpty)
+                                        customer.phone!,
+                                      if (customer.document != null &&
+                                          customer.document!.isNotEmpty)
+                                        customer.document!,
+                                    ].join(' · '),
+                                  ),
+                                  onTap: () =>
+                                      Navigator.of(context).pop(customer),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    searchController.dispose();
+    if (selected == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _customerId = selected.id;
+      _dirty = true;
+    });
+  }
+
   Future<void> _pickProduct() async {
     ProductSummaryItem? selected;
     List<ProductSummaryItem> products =
@@ -95,6 +184,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     if (!mounted) {
       return;
     }
+    final searchController = TextEditingController();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -114,6 +204,15 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               }
             }
 
+            Future<void> scanBarcode() async {
+              final scanned = await _scanBarcodeWithCamera();
+              if (scanned == null || scanned.isEmpty) {
+                return;
+              }
+              searchController.text = scanned;
+              await reload(scanned);
+            }
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
@@ -126,11 +225,18 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                 child: Column(
                   children: <Widget>[
                     TextField(
+                      controller: searchController,
                       onChanged: (value) => unawaited(reload(value)),
-                      decoration: const InputDecoration(
-                        labelText: 'Buscar producto',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText:
+                            'Buscar por nombre, código o código de barras',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: IconButton(
+                          tooltip: 'Escanear código de barras',
+                          icon: const Icon(Icons.qr_code_scanner_outlined),
+                          onPressed: () => unawaited(scanBarcode()),
+                        ),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -183,6 +289,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
         );
       },
     );
+    searchController.dispose();
 
     if (selected == null || !mounted) {
       return;
@@ -227,6 +334,79 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       }
       _dirty = true;
     });
+  }
+
+  /// Escanea un código de barras con la cámara y devuelve el valor leído (o
+  /// `null` si se cancela).
+  Future<String?> _scanBarcodeWithCamera() async {
+    final controller = MobileScannerController(
+      formats: const <BarcodeFormat>[
+        BarcodeFormat.ean13,
+        BarcodeFormat.ean8,
+        BarcodeFormat.code128,
+        BarcodeFormat.code39,
+        BarcodeFormat.upcA,
+        BarcodeFormat.upcE,
+        BarcodeFormat.qrCode
+      ],
+    );
+    var handled = false;
+
+    final scannedValue = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheetContext).size.height * 0.72,
+            child: Column(
+              children: <Widget>[
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Text(
+                    'Apunta la cámara al código de barras.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Expanded(
+                  child: MobileScanner(
+                    controller: controller,
+                    onDetect: (capture) {
+                      if (handled) {
+                        return;
+                      }
+                      final raw = capture.barcodes
+                          .map((barcode) => barcode.rawValue?.trim() ?? '')
+                          .firstWhere(
+                            (value) => value.isNotEmpty,
+                            orElse: () => '',
+                          );
+                      if (raw.isEmpty) {
+                        return;
+                      }
+                      handled = true;
+                      Navigator.of(sheetContext).pop(raw);
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Cancelar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    await controller.dispose();
+    return scannedValue;
   }
 
   Future<void> _editLine(_EditableSaleLine line) async {
@@ -372,7 +552,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     discountController.dispose();
   }
 
-  Future<void> _save() async {
+  Future<void> _save({bool confirm = false}) async {
     if (_lines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Agrega al menos un producto.')),
@@ -381,14 +561,19 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     }
     setState(() => _saving = true);
     try {
+      final credentials = await ref.read(syncCredentialsProvider.future);
+      final saleId = widget.saleId ?? _uuid.v4();
       await ref.read(saveSaleDraftUseCaseProvider)(
         SaleDraftUpsertInput(
-          saleId: widget.saleId ?? _uuid.v4(),
+          saleId: saleId,
           createdAt: _createdAt,
           customerId: _customerId,
           notes: _notesController.text.trim().isEmpty
               ? null
               : _notesController.text.trim(),
+          paymentMethod: _paymentMethod,
+          sellerId: credentials?.username,
+          sellerName: credentials?.displayName ?? credentials?.username,
           lines: _lines
               .map(
                 (line) => SaleLineDraftInput(
@@ -403,6 +588,10 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               .toList(),
         ),
       );
+      if (confirm) {
+        await ref.read(confirmSaleDraftUseCaseProvider)(saleId, DateTime.now().toUtc());
+      }
+      await ref.read(syncControllerProvider.notifier).syncNow(silent: true);
       if (!mounted) {
         return;
       }
@@ -468,21 +657,12 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: <Widget>[
-              DropdownButtonFormField<String?>(
-                initialValue: _customerId,
-                decoration: const InputDecoration(labelText: 'Cliente'),
-                items: <DropdownMenuItem<String?>>[
-                  const DropdownMenuItem<String?>(
-                      value: null, child: Text('Sin cliente')),
-                  ..._customers.map(
-                    (customer) => DropdownMenuItem<String?>(
-                      value: customer.id,
-                      child: Text(customer.name),
-                    ),
-                  ),
-                ],
-                onChanged: (value) => setState(() {
-                  _customerId = value;
+              _CustomerPickerField(
+                customers: _customers,
+                selectedCustomerId: _customerId,
+                onPick: _pickCustomer,
+                onClear: () => setState(() {
+                  _customerId = null;
                   _dirty = true;
                 }),
               ),
@@ -509,7 +689,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Costo total: ${_formatMoney(line.totalCostCents)}',
+                            'Total a cobrar: ${_formatMoney(line.totalCents)}',
                             style: TextStyle(
                               color: Colors.green.shade700,
                               fontWeight: FontWeight.w700,
@@ -541,6 +721,21 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                   ),
                 ),
               const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _paymentMethod,
+                decoration: const InputDecoration(labelText: 'Medio de pago', border: OutlineInputBorder()),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: 'cash', child: Text('Efectivo')),
+                  DropdownMenuItem(value: 'transfer', child: Text('Transferencia')),
+                  DropdownMenuItem(value: 'card', child: Text('Tarjeta')),
+                  DropdownMenuItem(value: 'current_account', child: Text('Cuenta corriente')),
+                ],
+                onChanged: (value) => setState(() {
+                  _paymentMethod = value ?? 'cash';
+                  _dirty = true;
+                }),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: _notesController,
                 onChanged: (_) => setState(() => _dirty = true),
@@ -560,11 +755,13 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                 value: _formatMoney(total),
                 highlight: true,
               ),
-              _SummaryRow(
-                label: 'Costo total',
-                value: _formatMoney(cost),
-              ),
-              _SummaryRow(label: 'Ganancia', value: _formatMoney(profit)),
+              if (ref.watch(isAdminProvider)) ...<Widget>[
+                _SummaryRow(
+                  label: 'Costo total',
+                  value: _formatMoney(cost),
+                ),
+                _SummaryRow(label: 'Ganancia', value: _formatMoney(profit)),
+              ],
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: _saving ? null : _save,
@@ -576,6 +773,12 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                       )
                     : const Icon(Icons.save_outlined),
                 label: const Text('Guardar draft'),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: _saving ? null : () => _save(confirm: true),
+                icon: const Icon(Icons.point_of_sale_outlined),
+                label: const Text('Cobrar y confirmar venta'),
               ),
             ],
           ),
@@ -605,6 +808,46 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       },
     );
     return result ?? false;
+  }
+}
+
+class _CustomerPickerField extends StatelessWidget {
+  const _CustomerPickerField({
+    required this.customers,
+    required this.selectedCustomerId,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final List<CustomerListItem> customers;
+  final String? selectedCustomerId;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = selectedCustomerId == null
+        ? null
+        : customers
+            .where((customer) => customer.id == selectedCustomerId)
+            .firstOrNull;
+    return InkWell(
+      onTap: onPick,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Cliente',
+          border: const OutlineInputBorder(),
+          suffixIcon: selected == null
+              ? const Icon(Icons.search)
+              : IconButton(
+                  tooltip: 'Quitar cliente',
+                  icon: const Icon(Icons.close),
+                  onPressed: onClear,
+                ),
+        ),
+        child: Text(selected?.name ?? 'Sin cliente · Tocá para buscar'),
+      ),
+    );
   }
 }
 

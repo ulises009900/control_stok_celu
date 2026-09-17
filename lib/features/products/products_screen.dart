@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -360,6 +361,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = ref.watch(isAdminProvider);
     return Scaffold(
       appBar: AppBar(
         leading: Navigator.canPop(context) ? const BackButton() : null,
@@ -372,23 +374,26 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             },
             icon: const Icon(Icons.search),
           ),
-          IconButton(
-            tooltip: 'Categorías',
-            onPressed: () => context.push('/categorias'),
-            icon: const Icon(Icons.category_outlined),
-          ),
-          IconButton(
-            tooltip: 'Proveedores',
-            onPressed: () => context.push('/proveedores'),
-            icon: const Icon(Icons.local_shipping_outlined),
-          ),
-          IconButton(
-            tooltip: 'Agregar producto',
-            onPressed: () => context
-                .push('/productos/nuevo')
-                .then((_) => _load(reset: true)),
-            icon: const Icon(Icons.add),
-          ),
+          if (isAdmin)
+            IconButton(
+              tooltip: 'Categorías',
+              onPressed: () => context.push('/categorias'),
+              icon: const Icon(Icons.category_outlined),
+            ),
+          if (isAdmin)
+            IconButton(
+              tooltip: 'Proveedores',
+              onPressed: () => context.push('/proveedores'),
+              icon: const Icon(Icons.local_shipping_outlined),
+            ),
+          if (isAdmin)
+            IconButton(
+              tooltip: 'Agregar producto',
+              onPressed: () => context
+                  .push('/productos/nuevo')
+                  .then((_) => _load(reset: true)),
+              icon: const Icon(Icons.add),
+            ),
         ],
       ),
       body: Column(
@@ -465,19 +470,22 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
               ),
             ),
           const SizedBox(height: 8),
-          Expanded(child: _buildContent()),
+          Expanded(child: _buildContent(isAdmin)),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            context.push('/productos/nuevo').then((_) => _load(reset: true)),
-        icon: const Icon(Icons.add),
-        label: const Text('Nuevo'),
-      ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => context
+                  .push('/productos/nuevo')
+                  .then((_) => _load(reset: true)),
+              icon: const Icon(Icons.add),
+              label: const Text('Nuevo'),
+            )
+          : null,
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(bool isAdmin) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -552,30 +560,33 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 ),
             ],
           ),
-          trailing: PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'edit') {
-                context
-                    .push('/productos/${item.id}/editar')
-                    .then((_) => _load(reset: true));
-              } else if (value == 'deactivate') {
-                unawaited(_setActive(item, false));
-              } else if (value == 'activate') {
-                unawaited(_setActive(item, true));
-              } else if (value == 'delete') {
-                unawaited(_logicalDelete(item));
-              }
-            },
-            itemBuilder: (context) => <PopupMenuEntry<String>>[
-              const PopupMenuItem<String>(value: 'edit', child: Text('Editar')),
-              PopupMenuItem<String>(
-                value: item.isActive ? 'deactivate' : 'activate',
-                child: Text(item.isActive ? 'Desactivar' : 'Reactivar'),
-              ),
-              const PopupMenuItem<String>(
-                  value: 'delete', child: Text('Eliminar lógico')),
-            ],
-          ),
+          trailing: isAdmin
+              ? PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      context
+                          .push('/productos/${item.id}/editar')
+                          .then((_) => _load(reset: true));
+                    } else if (value == 'deactivate') {
+                      unawaited(_setActive(item, false));
+                    } else if (value == 'activate') {
+                      unawaited(_setActive(item, true));
+                    } else if (value == 'delete') {
+                      unawaited(_logicalDelete(item));
+                    }
+                  },
+                  itemBuilder: (context) => <PopupMenuEntry<String>>[
+                    const PopupMenuItem<String>(
+                        value: 'edit', child: Text('Editar')),
+                    PopupMenuItem<String>(
+                      value: item.isActive ? 'deactivate' : 'activate',
+                      child: Text(item.isActive ? 'Desactivar' : 'Reactivar'),
+                    ),
+                    const PopupMenuItem<String>(
+                        value: 'delete', child: Text('Eliminar lógico')),
+                  ],
+                )
+              : null,
           onTap: () => context
               .push('/productos/${item.id}')
               .then((_) => _load(reset: true)),

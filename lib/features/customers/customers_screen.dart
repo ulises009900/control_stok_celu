@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,6 +72,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isAdmin = ref.watch(isAdminProvider);
     return Scaffold(
       appBar: AppBar(
         leading: Navigator.canPop(context) ? const BackButton() : null,
@@ -108,22 +110,24 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
             },
             title: const Text('Incluir inactivos'),
           ),
-          Expanded(child: _buildContent()),
+          Expanded(child: _buildContent(isAdmin)),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/customers/new').then((value) {
-          if (value == true) {
-            _load();
-          }
-        }),
-        icon: const Icon(Icons.add),
-        label: const Text('Nuevo cliente'),
-      ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('/customers/new').then((value) {
+                if (value == true) {
+                  _load();
+                }
+              }),
+              icon: const Icon(Icons.add),
+              label: const Text('Nuevo cliente'),
+            )
+          : null,
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildContent(bool isAdmin) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -145,35 +149,38 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
             subtitle: Text(
               [
                 if ((item.phone ?? '').isNotEmpty) item.phone!,
-                if ((item.email ?? '').isNotEmpty) item.email!,
-                if ((item.document ?? '').isNotEmpty) item.document!,
+                if (isAdmin && (item.email ?? '').isNotEmpty) item.email!,
+                if (isAdmin && (item.document ?? '').isNotEmpty)
+                  item.document!,
                 item.isActive ? 'Activo' : 'Inactivo',
               ].join(' · '),
             ),
-            trailing: PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'edit') {
-                  context.push('/customers/${item.id}/edit').then((saved) {
-                    if (saved == true) {
-                      _load();
-                    }
-                  });
-                } else {
-                  _toggle(item);
-                }
-              },
-              itemBuilder: (context) => <PopupMenuEntry<String>>[
-                const PopupMenuItem<String>(
-                  value: 'edit',
-                  child: Text('Editar'),
-                ),
-                PopupMenuItem<String>(
-                  value: 'toggle',
-                  child: Text(item.isActive ? 'Desactivar' : 'Reactivar'),
-                ),
-              ],
-            ),
-            onTap: () => context.push('/customers/${item.id}'),
+            trailing: isAdmin
+                ? PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        context.push('/customers/${item.id}/edit').then((saved) {
+                          if (saved == true) {
+                            _load();
+                          }
+                        });
+                      } else {
+                        _toggle(item);
+                      }
+                    },
+                    itemBuilder: (context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Text('Editar'),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'toggle',
+                        child: Text(item.isActive ? 'Desactivar' : 'Reactivar'),
+                      ),
+                    ],
+                  )
+                : null,
+            onTap: isAdmin ? () => context.push('/customers/${item.id}') : null,
           );
         },
       ),
