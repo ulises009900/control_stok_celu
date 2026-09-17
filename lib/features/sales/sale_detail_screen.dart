@@ -68,7 +68,10 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
     setState(() => _processingAction = true);
     try {
       await action();
-    } catch (e) {
+      // Publica en el servidor apenas se confirma/reserva/elimina un draft.
+      // Así no depende del ciclo de sincronización para que el jefe lo vea.
+      await ref.read(syncControllerProvider.notifier).syncNow(silent: true);
+      } catch (e) {
       if (!mounted) {
         return;
       }

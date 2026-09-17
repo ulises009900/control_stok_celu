@@ -47,6 +47,7 @@ class _CashboxScreenState extends ConsumerState<CashboxScreen> {
           notes: result.notes,
         ),
       );
+      await ref.read(syncControllerProvider.notifier).syncNow(silent: true);
       invalidateCashboxProviders(ref);
     } catch (e) {
       _showError(e);
@@ -89,6 +90,7 @@ class _CashboxScreenState extends ConsumerState<CashboxScreen> {
           userId: credentials?.username,
         ),
       );
+      await ref.read(syncControllerProvider.notifier).syncNow(silent: true);
       invalidateCashboxProviders(ref);
       ref.invalidate(cashSessionDetailProvider(session.id));
     } catch (e) {
@@ -121,6 +123,7 @@ class _CashboxScreenState extends ConsumerState<CashboxScreen> {
           notes: result.notes,
         ),
       );
+      await ref.read(syncControllerProvider.notifier).syncNow(silent: true);
       invalidateCashboxProviders(ref);
       if (mounted) {
         await _showCloseSummary(closed);
@@ -482,7 +485,7 @@ class _CloseSessionDialogState extends State<_CloseSessionDialog> {
           children: <Widget>[
             Text('Apertura: ${_formatMoney(detail.openingCents)}'),
             Text(
-                'Ventas (${detail.salesCount}): ${_formatMoney(detail.salesTotalCents)}'),
+                'Ventas en efectivo (${detail.salesCount}): ${_formatMoney(detail.salesTotalCents)}'),
             Text(
                 'Ingresos manuales: ${_formatMoney(detail.manualIncomeCents)}'),
             Text(
