@@ -218,7 +218,11 @@ class SyncController extends StateNotifier<AsyncValue<SyncResult?>> {
       final db = _ref.read(appDatabaseProvider);
       final engine = SyncEngine(db: db, client: client);
       final result = await engine.syncAll();
-      state = AsyncValue.data(result);
+      // No emitimos un nuevo evento cuando no hubo cambios: evita avisos
+      // repetidos durante el polling si todo ya estaba sincronizado.
+      if (result.pushed > 0 || result.pulled > 0 || !silent) {
+        state = AsyncValue.data(result);
+      }
       // Refresca las pantallas reactivas de caja; el resto de las pantallas
       // (ventas, gastos, productos, etc.) recargan solas al volver a
       // visitarlas, siguiendo el patrón ya usado en el resto de la app.

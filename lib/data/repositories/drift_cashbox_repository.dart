@@ -82,7 +82,7 @@ class DriftCashboxRepository implements CashboxRepository {
               sessionId: input.sessionId,
               type: cashMovementTypeToDb(input.type),
               amountCents: input.amountCents,
-              description: Value(input.description),
+              description: Value('[${input.paymentMethod}] ${input.description ?? ''}'.trim()),
               deviceId: input.deviceId,
               userId: Value(input.userId),
               createdAt: (input.createdAt ?? now).toUtc(),
@@ -145,6 +145,43 @@ class DriftCashboxRepository implements CashboxRepository {
           ..where((t) => t.sessionId.equals(sessionId))
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
+    // Las ventas en efectivo son movimientos reales del turno: se incluyen
+    // en el historial para que el arqueo pueda auditarse operación por operación.
+    final saleRows = await _db.customSelect(
+      '''SELECT id, total_cents, confirmed_at FROM sales
+         WHERE status = ? AND payment_method = 'cash'
+           AND confirmed_at >= ? AND confirmed_at <= ?
+         ORDER BY confirmed_at DESC''',
+      variables: <Variable<Object>>[
+        Variable<String>(_saleStatusSold),
+        Variable<DateTime>(session.openedAt),
+        Variable<DateTime>(windowEnd),
+      ],
+    ).get();
+    final paymentTotals = await _db.customSelect(
+      '''SELECT
+           COALESCE(SUM(CASE WHEN payment_method = 'transfer' THEN total_cents ELSE 0 END), 0) AS transfer_total,
+           COALESCE(SUM(CASE WHEN payment_method = 'card' THEN total_cents ELSE 0 END), 0) AS card_total,
+           COALESCE(SUM(CASE WHEN payment_method = 'current_account' THEN total_cents ELSE 0 END), 0) AS account_total
+         FROM sales
+         WHERE status = ? AND confirmed_at >= ? AND confirmed_at <= ?''',
+      variables: <Variable<Object>>[
+        Variable<String>(_saleStatusSold),
+        Variable<DateTime>(session.openedAt),
+        Variable<DateTime>(windowEnd),
+      ],
+    ).getSingle();
+    final allMovements = <CashMovementItem>[
+      ...movementRows.map(_mapMovement),
+      ...saleRows.map((row) => CashMovementItem(
+            id: 'sale_${row.read<String>('id')}',
+            sessionId: sessionId,
+            type: CashMovementType.income,
+            amountCents: row.read<int>('total_cents'),
+            createdAt: row.read<DateTime>('confirmed_at'),
+            description: 'Venta en efectivo #${row.read<String>('id')}',
+          )),
+    ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return CashSessionDetail(
       id: session.id,
       deviceId: session.deviceId,
@@ -158,7 +195,7 @@ class DriftCashboxRepository implements CashboxRepository {
       manualIncomeCents: arqueo.manualIncomeCents,
       manualExpenseCents: arqueo.manualExpenseCents,
       expectedClosingCents: arqueo.expectedClosingCents,
-      movements: movementRows.map(_mapMovement).toList(),
+      movements: allMovements,
       userId: session.userId,
       userName: session.userName,
       closedAt: session.closedAt,
@@ -166,6 +203,9 @@ class DriftCashboxRepository implements CashboxRepository {
       differenceCents: session.differenceCents,
       openingNotes: session.openingNotes,
       closingNotes: session.closingNotes,
+      transferSalesCents: paymentTotals.read<int>('transfer_total'),
+      cardSalesCents: paymentTotals.read<int>('card_total'),
+      currentAccountSalesCents: paymentTotals.read<int>('account_total'),
     );
   }
 
@@ -217,11 +257,13 @@ class DriftCashboxRepository implements CashboxRepository {
     final movements = await (_db.select(_db.cashMovements)
           ..where((t) => t.sessionId.equals(session.id)))
         .get();
+    bool isCash(CashMovement m) =>
+        m.description == null || !m.description!.startsWith('[') || m.description!.startsWith('[Efectivo]');
     final manualIncome = movements
-        .where((m) => m.type == 'income')
+        .where((m) => m.type == 'income' && isCash(m))
         .fold<int>(0, (sum, m) => sum + m.amountCents);
     final manualExpense = movements
-        .where((m) => m.type == 'expense')
+        .where((m) => m.type == 'expense' && isCash(m))
         .fold<int>(0, (sum, m) => sum + m.amountCents);
     final salesTotal = salesRow.read<int>('total');
     final expensesTotal = expensesRow.read<int>('total');

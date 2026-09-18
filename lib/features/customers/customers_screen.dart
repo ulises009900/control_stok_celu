@@ -180,7 +180,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                     ],
                   )
                 : null,
-            onTap: isAdmin ? () => context.push('/customers/${item.id}') : null,
+            onTap: () => context.push('/customers/${item.id}'),
           );
         },
       ),

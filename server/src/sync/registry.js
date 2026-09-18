@@ -40,12 +40,14 @@ const TABLES = {
   expense_categories: {
     table: 'expense_categories',
     cursorColumn: 'updated_at',
-    allowedRoles: ['admin'],
+    allowedRoles: ['admin', 'vendedor'],
   },
   expenses: {
     table: 'expenses',
     cursorColumn: 'updated_at',
-    allowedRoles: ['admin'],
+    // Los empleados pueden rendir gastos; el administrador recibe todos al
+    // sincronizar y conserva la auditoría de cada registro.
+    allowedRoles: ['admin', 'vendedor'],
   },
   cash_sessions: {
     table: 'cash_sessions',

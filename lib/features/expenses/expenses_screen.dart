@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:control_stok_celu/core/errors/app_exception.dart';
 import 'package:control_stok_celu/core/period_range.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:control_stok_celu/features/cashbox/cashbox_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
   const ExpensesScreen({
@@ -254,6 +256,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                               await ref
                                   .read(updateExpenseUseCaseProvider)(input);
                             }
+                            await ref
+                                .read(syncControllerProvider.notifier)
+                                .syncNow(silent: true);
                             if (!mounted) {
                               return;
                             }
@@ -315,6 +320,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       return;
     }
     await ref.read(logicalDeleteExpenseUseCaseProvider)(item.id);
+    await ref.read(syncControllerProvider.notifier).syncNow(silent: true);
     if (!mounted) {
       return;
     }
@@ -328,6 +334,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Gastos'),
         actions: <Widget>[
+          IconButton(
+            tooltip: 'Categorías de gastos',
+            onPressed: () => context.push('/gastos/categorias'),
+            icon: const Icon(Icons.category_outlined),
+          ),
+          IconButton(
+            tooltip: 'Proveedores',
+            onPressed: () => context.push('/proveedores'),
+            icon: const Icon(Icons.local_shipping_outlined),
+          ),
           IconButton(
             tooltip: 'Nuevo gasto',
             onPressed: () => _openForm(),

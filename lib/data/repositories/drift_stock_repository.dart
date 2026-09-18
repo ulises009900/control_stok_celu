@@ -1376,6 +1376,11 @@ class DriftStockRepository implements StockRepository {
       where.add('s.customer_id = ?');
       values.add(query.customerId!);
     }
+    if (query.sellerSearch != null && query.sellerSearch!.trim().isNotEmpty) {
+      where.add("(LOWER(IFNULL(s.seller_name, '')) LIKE ? OR LOWER(IFNULL(s.seller_id, '')) LIKE ?)");
+      final seller = '%${query.sellerSearch!.trim().toLowerCase()}%';
+      values..add(seller)..add(seller);
+    }
     if (query.status != SaleStatusFilter.all) {
       where.add('s.status = ?');
       values.add(_saleStatusFilterValue(query.status));

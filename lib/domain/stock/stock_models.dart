@@ -837,6 +837,7 @@ class SaleQuery {
     this.search,
     this.status = SaleStatusFilter.all,
     this.customerId,
+    this.sellerSearch,
     this.period = DashboardPeriod.thisMonth,
     this.from,
     this.to,
@@ -847,6 +848,7 @@ class SaleQuery {
   final String? search;
   final SaleStatusFilter status;
   final String? customerId;
+  final String? sellerSearch;
   final DashboardPeriod period;
   final DateTime? from;
   final DateTime? to;

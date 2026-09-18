@@ -1,4 +1,5 @@
 import 'package:control_stok_celu/data/sync/sync_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,20 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<AsyncValue<SyncResult?>>(
+      syncControllerProvider,
+      (previous, next) {
+        final result = next.valueOrNull;
+        if (result != null && (result.pulled > 0 || result.pushed > 0)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Datos actualizados: ${result.pulled} recibidos, ${result.pushed} enviados.'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      },
+    );
     final isAdmin = ref.watch(isAdminProvider);
     final items = <_HomeItem>[
       const _HomeItem('Stock', '/stock', Icons.inventory_2_outlined),
@@ -15,14 +30,12 @@ class HomeScreen extends ConsumerWidget {
       const _HomeItem('Caja', '/caja', Icons.account_balance_wallet_outlined),
       const _HomeItem('Reservas', '/reservations', Icons.bookmark_outline),
       const _HomeItem('Productos', '/productos', Icons.shopping_bag_outlined),
-      if (isAdmin)
-        const _HomeItem(
-            'Proveedores', '/proveedores', Icons.local_shipping_outlined),
+      const _HomeItem(
+          'Proveedores', '/proveedores', Icons.local_shipping_outlined),
       const _HomeItem('Clientes', '/customers', Icons.people_outline),
       if (isAdmin)
         const _HomeItem('Empleados', '/empleados', Icons.badge_outlined),
-      if (isAdmin)
-        const _HomeItem('Gastos', '/gastos', Icons.receipt_long_outlined),
+      const _HomeItem('Gastos', '/gastos', Icons.receipt_long_outlined),
       if (isAdmin)
         const _HomeItem(
             'Estadísticas', '/estadisticas', Icons.bar_chart_outlined),

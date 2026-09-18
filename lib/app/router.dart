@@ -233,11 +233,8 @@ String? _authRedirect(
 /// clientes (solo ve lo básico en sus listados).
 bool _isAdminOnlyRoute(String location) {
   const List<String> exactAdminOnly = <String>[
-    '/proveedores',
     '/empleados',
     '/employees',
-    '/gastos',
-    '/gastos/categorias',
     '/estadisticas',
     '/reports',
     '/categorias',
@@ -247,14 +244,11 @@ bool _isAdminOnlyRoute(String location) {
   if (exactAdminOnly.contains(location)) {
     return true;
   }
-  if (location.startsWith('/proveedores/')) {
-    return true;
-  }
   if (location.startsWith('/productos/') &&
       (location.endsWith('/editar') || location.endsWith('/movimiento'))) {
     return true;
   }
-  if (location.startsWith('/customers/') && location != '/customers') {
+  if (location.startsWith('/customers/') && location.endsWith('/edit')) {
     // Bloquea tanto el detalle (muestra historial/estadísticas del cliente)
     // como la edición.
     return true;

@@ -87,6 +87,7 @@ class _CashboxScreenState extends ConsumerState<CashboxScreen> {
           amountCents: result.amountCents,
           deviceId: deviceId,
           description: result.notes,
+          paymentMethod: result.paymentMethod,
           userId: credentials?.username,
         ),
       );
@@ -341,10 +342,11 @@ class _OpenSessionView extends StatelessWidget {
 }
 
 class _AmountDialogResult {
-  const _AmountDialogResult(this.amountCents, this.notes);
+  const _AmountDialogResult(this.amountCents, this.notes, {this.paymentMethod = 'Efectivo'});
 
   final int amountCents;
   final String? notes;
+  final String paymentMethod;
 }
 
 class _AmountDialog extends StatefulWidget {
@@ -367,6 +369,7 @@ class _AmountDialog extends StatefulWidget {
 class _AmountDialogState extends State<_AmountDialog> {
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
+  String _paymentMethod = 'Efectivo';
 
   @override
   void dispose() {
@@ -390,6 +393,7 @@ class _AmountDialogState extends State<_AmountDialog> {
         _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
+        paymentMethod: _paymentMethod,
       ),
     );
   }
@@ -411,6 +415,18 @@ class _AmountDialogState extends State<_AmountDialog> {
             decoration: InputDecoration(labelText: widget.amountLabel),
           ),
           const SizedBox(height: 12),
+          if (widget.showNotesAsDescription)
+            DropdownButtonFormField<String>(
+              initialValue: _paymentMethod,
+              decoration: const InputDecoration(labelText: 'Medio de pago'),
+              items: const [
+                DropdownMenuItem(value: 'Efectivo', child: Text('Efectivo')),
+                DropdownMenuItem(value: 'Transferencia', child: Text('Transferencia')),
+                DropdownMenuItem(value: 'Tarjeta', child: Text('Tarjeta')),
+              ],
+              onChanged: (value) => setState(() => _paymentMethod = value ?? 'Efectivo'),
+            ),
+          if (widget.showNotesAsDescription) const SizedBox(height: 12),
           TextField(
             controller: _notesController,
             decoration: InputDecoration(
@@ -486,6 +502,9 @@ class _CloseSessionDialogState extends State<_CloseSessionDialog> {
             Text('Apertura: ${_formatMoney(detail.openingCents)}'),
             Text(
                 'Ventas en efectivo (${detail.salesCount}): ${_formatMoney(detail.salesTotalCents)}'),
+            Text('Transferencias (no efectivo): ${_formatMoney(detail.transferSalesCents)}'),
+            Text('Tarjetas (no efectivo): ${_formatMoney(detail.cardSalesCents)}'),
+            Text('Cuenta corriente pendiente: ${_formatMoney(detail.currentAccountSalesCents)}'),
             Text(
                 'Ingresos manuales: ${_formatMoney(detail.manualIncomeCents)}'),
             Text(
@@ -494,7 +513,7 @@ class _CloseSessionDialogState extends State<_CloseSessionDialog> {
                 'Gastos (${detail.expensesCount}): ${_formatMoney(detail.expensesTotalCents)}'),
             const Divider(),
             Text(
-              'Esperado en caja: ${_formatMoney(detail.expectedClosingCents)}',
+              'Efectivo esperado en caja: ${_formatMoney(detail.expectedClosingCents)}',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),

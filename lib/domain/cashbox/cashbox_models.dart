@@ -85,6 +85,7 @@ class RegisterCashMovementInput {
     required this.amountCents,
     required this.deviceId,
     this.description,
+    this.paymentMethod = 'Efectivo',
     this.userId,
     this.createdAt,
   });
@@ -95,6 +96,7 @@ class RegisterCashMovementInput {
   final int amountCents;
   final String deviceId;
   final String? description;
+  final String paymentMethod;
   final String? userId;
   final DateTime? createdAt;
 }
@@ -177,6 +179,9 @@ class CashSessionDetail {
     this.differenceCents,
     this.openingNotes,
     this.closingNotes,
+    this.transferSalesCents = 0,
+    this.cardSalesCents = 0,
+    this.currentAccountSalesCents = 0,
   });
 
   final String id;
@@ -199,6 +204,10 @@ class CashSessionDetail {
   final int? differenceCents;
   final String? openingNotes;
   final String? closingNotes;
+  /// Totales informativos del turno. No integran el efectivo esperado.
+  final int transferSalesCents;
+  final int cardSalesCents;
+  final int currentAccountSalesCents;
 }
 
 /// Resumen agregado de la actividad de caja en un período (todos los

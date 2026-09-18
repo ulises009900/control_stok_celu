@@ -5,12 +5,13 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: control_stok
-      POSTGRES_PASSWORD: control_stok_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definí POSTGRES_PASSWORD en .env}
       POSTGRES_DB: control_stok_celu
     ports:
       # Postgres escucha en 3433 en el host, aunque adentro del contenedor
       # sigue usando su puerto estandar 5432.
-      - "3433:5432"
+      # PostgreSQL sólo queda disponible localmente; los teléfonos usan la API.
+      - "127.0.0.1:3433:5432"
     volumes:
       - control_stok_celu_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -31,7 +32,7 @@ services:
       # Dentro de la red de docker compose, el host de Postgres es el
       # nombre del servicio ("postgres") y su puerto interno sigue siendo
       # 5432 (el 3433 es solo el mapeo hacia afuera del contenedor).
-      DATABASE_URL: postgres://control_stok:control_stok_password@postgres:5432/control_stok_celu
+      DATABASE_URL: postgres://control_stok:${POSTGRES_PASSWORD:?Definí POSTGRES_PASSWORD en .env}@postgres:5432/control_stok_celu
       JWT_SECRET: ${JWT_SECRET:-cambiar-este-secreto-en-produccion}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-30d}
       SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-jefe}

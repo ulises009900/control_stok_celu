@@ -74,13 +74,13 @@ class _DetailBody extends StatelessWidget {
                 Text('Arqueo', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 _Row('Apertura', detail.openingCents),
-                _Row('Ventas (${detail.salesCount})', detail.salesTotalCents),
-                _Row('Ingresos manuales', detail.manualIncomeCents),
-                _Row('Egresos manuales', -detail.manualExpenseCents),
+                _Row('Ventas en efectivo (${detail.salesCount})', detail.salesTotalCents),
+                _Row('Ingresos manuales en efectivo', detail.manualIncomeCents),
+                _Row('Egresos manuales en efectivo', -detail.manualExpenseCents),
                 _Row('Gastos (${detail.expensesCount})',
                     -detail.expensesTotalCents),
                 const Divider(),
-                _Row('Esperado', detail.expectedClosingCents, bold: true),
+                _Row('Efectivo esperado al cierre', detail.expectedClosingCents, bold: true),
                 if (!isOpen) ...<Widget>[
                   _Row('Contado', detail.countedClosingCents ?? 0),
                   _Row(
@@ -98,11 +98,29 @@ class _DetailBody extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('Cobros no incluidos en efectivo', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                _Row('Transferencias', detail.transferSalesCents),
+                _Row('Tarjetas', detail.cardSalesCents),
+                _Row('Cuenta corriente (pendiente)', detail.currentAccountSalesCents),
+                const SizedBox(height: 6),
+                const Text('Estos importes quedan registrados en ventas, pero no se comparan contra el efectivo contado.'),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 16),
-        Text('Movimientos manuales', style: Theme.of(context).textTheme.titleMedium),
+        Text('Movimientos de caja y ventas', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         if (detail.movements.isEmpty)
-          const Text('No hay movimientos manuales registrados.')
+          const Text('No hay movimientos registrados.')
         else
           ...detail.movements.map(
             (movement) => Card(

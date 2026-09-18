@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -105,6 +106,9 @@ class _ExpenseCategoryScreenState extends ConsumerState<ExpenseCategoryScreen> {
                       await ref
                           .read(updateExpenseCategoryUseCaseProvider)(input);
                     }
+                    await ref
+                        .read(syncControllerProvider.notifier)
+                        .syncNow(silent: true);
                     if (!mounted) {
                       return;
                     }

@@ -51,6 +51,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     final state = ref.read(salesStateProvider);
     SaleStatusFilter status = state.query.status;
     String? customerId = state.query.customerId;
+    final sellerController =
+        TextEditingController(text: state.query.sellerSearch ?? '');
     DashboardPeriod period = state.query.period;
 
     await showModalBottomSheet<void>(
@@ -104,6 +106,14 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                         setModalState(() => customerId = value),
                   ),
                   const SizedBox(height: 8),
+                  TextField(
+                    controller: sellerController,
+                    decoration: const InputDecoration(
+                      labelText: 'Empleado / vendedor',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   DropdownButtonFormField<DashboardPeriod>(
                     initialValue: period,
                     decoration: const InputDecoration(labelText: 'Período'),
@@ -135,6 +145,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       Navigator.of(context).pop();
                       final notifier = ref.read(salesStateProvider.notifier);
                       await notifier.setCustomer(customerId);
+                      await notifier.setSellerSearch(sellerController.text);
                       await notifier.setStatus(status);
                       await notifier.setPeriod(period);
                     },
@@ -147,6 +158,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         );
       },
     );
+    sellerController.dispose();
   }
 
   @override

@@ -75,6 +75,7 @@ class SalesNotifier extends StateNotifier<SalesState> {
         search: search.trim().isEmpty ? null : search.trim(),
         status: state.query.status,
         customerId: state.query.customerId,
+        sellerSearch: state.query.sellerSearch,
         period: state.query.period,
         from: state.query.from,
         to: state.query.to,
@@ -89,6 +90,7 @@ class SalesNotifier extends StateNotifier<SalesState> {
         search: state.query.search,
         status: status,
         customerId: state.query.customerId,
+        sellerSearch: state.query.sellerSearch,
         period: state.query.period,
         from: state.query.from,
         to: state.query.to,
@@ -103,6 +105,7 @@ class SalesNotifier extends StateNotifier<SalesState> {
         search: state.query.search,
         status: state.query.status,
         customerId: customerId,
+        sellerSearch: state.query.sellerSearch,
         period: state.query.period,
         from: state.query.from,
         to: state.query.to,
@@ -117,7 +120,26 @@ class SalesNotifier extends StateNotifier<SalesState> {
         search: state.query.search,
         status: state.query.status,
         customerId: state.query.customerId,
+        sellerSearch: state.query.sellerSearch,
         period: period,
+        from: state.query.from,
+        to: state.query.to,
+      ),
+    );
+    await load();
+  }
+}
+
+extension SalesEmployeeFilter on SalesNotifier {
+  Future<void> setSellerSearch(String? value) async {
+    final clean = value?.trim();
+    state = state.copyWith(
+      query: SaleQuery(
+        search: state.query.search,
+        status: state.query.status,
+        customerId: state.query.customerId,
+        sellerSearch: clean == null || clean.isEmpty ? null : clean,
+        period: state.query.period,
         from: state.query.from,
         to: state.query.to,
       ),

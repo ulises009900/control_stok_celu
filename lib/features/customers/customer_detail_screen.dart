@@ -1,4 +1,5 @@
 import 'package:control_stok_celu/data/providers/app_providers.dart';
+import 'package:control_stok_celu/data/sync/sync_providers.dart';
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,7 +35,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
         leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Detalle cliente'),
         actions: <Widget>[
-          IconButton(
+          if (ref.watch(isAdminProvider)) IconButton(
             onPressed: () => context
                 .push('/customers/${widget.customerId}/edit')
                 .then((value) {
@@ -84,6 +85,15 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
               _Line(
                   label: 'Saldo cuenta corriente',
                   value: _formatMoney(detail.currentAccountBalanceCents)),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.account_balance_wallet_outlined),
+                  title: const Text('Cuenta corriente'),
+                  subtitle: Text(detail.currentAccountBalanceCents == 0
+                      ? 'Sin saldo pendiente.'
+                      : 'Saldo pendiente: ${_formatMoney(detail.currentAccountBalanceCents)}'),
+                ),
+              ),
               const SizedBox(height: 16),
               Text('Historial', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
