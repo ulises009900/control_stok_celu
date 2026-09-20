@@ -9,13 +9,37 @@ class CashboxHistoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final filter = ref.watch(cashHistoryFilterProvider);
     final sessionsAsync = ref.watch(cashSessionHistoryProvider);
     return Scaffold(
       appBar: AppBar(
         leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Historial de caja'),
       ),
-      body: sessionsAsync.when(
+      body: Column(children: [
+        Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+          TextFormField(
+            initialValue: filter.employee,
+            decoration: const InputDecoration(labelText: 'Filtrar por empleado', prefixIcon: Icon(Icons.person_search)),
+            onChanged: (value) => ref.read(cashHistoryFilterProvider.notifier).state = CashHistoryFilter(employee: value, from: filter.from, to: filter.to),
+          ),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, children: [
+            OutlinedButton.icon(
+              icon: const Icon(Icons.date_range),
+              label: Text(filter.from == null ? 'Filtrar por fecha de apertura' : '${_formatDate(filter.from!)} - ${_formatDate(filter.to!.subtract(const Duration(days: 1)))}'),
+              onPressed: () async {
+                final range = await showDateRangePicker(context: context, firstDate: DateTime(2000), lastDate: DateTime.now().add(const Duration(days: 365)),
+                  initialDateRange: filter.from == null ? null : DateTimeRange(start: filter.from!, end: filter.to!.subtract(const Duration(days: 1))));
+                if (range == null || !context.mounted) return;
+                ref.read(cashHistoryFilterProvider.notifier).state = CashHistoryFilter(employee: filter.employee, from: range.start,
+                  to: DateTime(range.end.year, range.end.month, range.end.day + 1));
+              },
+            ),
+            if (filter.from != null) TextButton(onPressed: () => ref.read(cashHistoryFilterProvider.notifier).state = CashHistoryFilter(employee: filter.employee), child: const Text('Todas las fechas')),
+          ]),
+        ])),
+        Expanded(child: sessionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('Error: $error')),
         data: (sessions) {
@@ -53,7 +77,8 @@ class CashboxHistoryScreen extends ConsumerWidget {
             },
           );
         },
-      ),
+      )),
+      ]),
     );
   }
 }

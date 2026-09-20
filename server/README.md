@@ -235,3 +235,10 @@ saben leer, enviar, recibir y aplicar esa tabla.
 - Para exponerlo fuera de la red local (por ejemplo si los vendedores no
   están siempre en el mismo WiFi), hay que sumar HTTPS (por ejemplo con un
   proxy reverso) — el servidor no termina TLS por sí mismo.
+## Remitos sin conexion
+
+La app genera y numera los remitos localmente, sin exigir una actualizacion del
+servidor ni una conexion activa. Cada celular mantiene su propia secuencia.
+Los numeros previamente guardados se conservan al volver a emitir el PDF.
+El endpoint central de numeracion se mantiene por compatibilidad con versiones
+anteriores de la app; la emision actual no depende de ese endpoint.

@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class SalesState {
   const SalesState({
     this.items = const <SaleListItem>[],
-    this.query = const SaleQuery(),
+    this.query = const SaleQuery(status: SaleStatusFilter.sold),
+    this.hasMore = false,
+    this.isLoadingMore = false,
     this.isLoading = false,
     this.isSearching = false,
     this.errorMessage,
@@ -14,6 +16,8 @@ class SalesState {
 
   final List<SaleListItem> items;
   final SaleQuery query;
+  final bool hasMore;
+  final bool isLoadingMore;
   final bool isLoading;
   final bool isSearching;
   final String? errorMessage;
@@ -22,6 +26,8 @@ class SalesState {
   SalesState copyWith({
     List<SaleListItem>? items,
     SaleQuery? query,
+    bool? hasMore,
+    bool? isLoadingMore,
     bool? isLoading,
     bool? isSearching,
     String? errorMessage,
@@ -31,6 +37,8 @@ class SalesState {
     return SalesState(
       items: items ?? this.items,
       query: query ?? this.query,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       isLoading: isLoading ?? this.isLoading,
       isSearching: isSearching ?? this.isSearching,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
@@ -44,11 +52,17 @@ class SalesNotifier extends StateNotifier<SalesState> {
 
   final Ref _ref;
 
+  int _request = 0;
+
   Future<void> load() async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    final request = ++_request;
+    state =
+        state.copyWith(isLoading: true, isLoadingMore: false, clearError: true);
     try {
       final items = await _ref.read(listSalesUseCaseProvider)(state.query);
+      if (!mounted || request != _request) return;
       state = state.copyWith(
+        hasMore: items.length == state.query.limit,
         items: items,
         isLoading: false,
         isSearching: false,
@@ -56,12 +70,43 @@ class SalesNotifier extends StateNotifier<SalesState> {
         clearError: true,
       );
     } catch (e) {
+      if (!mounted || request != _request) return;
       state = state.copyWith(
         isLoading: false,
         isSearching: false,
         hasLoadedOnce: true,
         errorMessage: 'No pudimos cargar ventas. $e',
       );
+    }
+  }
+
+  Future<void> loadMore() async {
+    if (state.isLoading || state.isLoadingMore || !state.hasMore) return;
+    final request = _request;
+    final q = state.query;
+    state = state.copyWith(isLoadingMore: true, clearError: true);
+    try {
+      final items = await _ref.read(listSalesUseCaseProvider)(SaleQuery(
+        search: q.search,
+        status: q.status,
+        customerId: q.customerId,
+        sellerSearch: q.sellerSearch,
+        period: q.period,
+        from: q.from,
+        to: q.to,
+        limit: q.limit,
+        offset: state.items.length,
+      ));
+      if (!mounted || request != _request) return;
+      state = state.copyWith(
+          items: [...state.items, ...items],
+          hasMore: items.length == q.limit,
+          isLoadingMore: false);
+    } catch (e) {
+      if (!mounted || request != _request) return;
+      state = state.copyWith(
+          isLoadingMore: false,
+          errorMessage: 'No pudimos cargar más ventas. $e');
     }
   }
 
@@ -128,9 +173,7 @@ class SalesNotifier extends StateNotifier<SalesState> {
     );
     await load();
   }
-}
 
-extension SalesEmployeeFilter on SalesNotifier {
   Future<void> setSellerSearch(String? value) async {
     final clean = value?.trim();
     state = state.copyWith(

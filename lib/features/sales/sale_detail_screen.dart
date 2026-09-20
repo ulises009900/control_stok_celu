@@ -1,3 +1,5 @@
+import 'package:control_stok_celu/features/sales/sale_ticket.dart';
+import 'package:control_stok_celu/features/sales/sale_ticket_screen.dart';
 import 'package:control_stok_celu/core/commercial/percentage_utils.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:control_stok_celu/data/sync/sync_providers.dart';
@@ -27,6 +29,12 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
 
   Future<SaleDetailView> _load() {
     return ref.read(getSaleDetailUseCaseProvider)(widget.saleId);
+  }
+
+  Future<void> _shareTicket(SaleDetailView detail) async {
+    await Navigator.of(context).push<void>(MaterialPageRoute(
+      builder: (_) => SaleTicketScreen(detail: detail),
+    ));
   }
 
   Future<void> _confirmDraftSale() async {
@@ -71,7 +79,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
       // Publica en el servidor apenas se confirma/reserva/elimina un draft.
       // Así no depende del ciclo de sincronización para que el jefe lo vea.
       await ref.read(syncControllerProvider.notifier).syncNow(silent: true);
-      } catch (e) {
+    } catch (e) {
       if (!mounted) {
         return;
       }
@@ -117,8 +125,10 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
               _Line(label: 'ID', value: sale.id),
-              _Line(label: 'Estado', value: sale.status),
-              _Line(label: 'Pago', value: _paymentMethodLabel(sale.paymentMethod)),
+              _Line(label: 'Estado', value: saleStatusLabel(sale.status)),
+              _Line(
+                  label: 'Pago',
+                  value: _paymentMethodLabel(sale.paymentMethod)),
               if ((sale.sellerName ?? '').isNotEmpty)
                 _Line(label: 'Vendedor', value: sale.sellerName!),
               _Line(
@@ -153,6 +163,12 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => _shareTicket(detail),
+                icon: const Icon(Icons.share_outlined),
+                label: const Text('Remito'),
+              ),
+              const SizedBox(height: 8),
               if (sale.status == 'draft') ...<Widget>[
                 FilledButton.icon(
                   onPressed: () =>
@@ -162,7 +178,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
                     }
                   }),
                   icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Editar draft'),
+                  label: const Text('Editar borrador'),
                 ),
                 const SizedBox(height: 8),
                 FilledButton.tonalIcon(
@@ -180,7 +196,7 @@ class _SaleDetailScreenState extends ConsumerState<SaleDetailScreen> {
                 OutlinedButton.icon(
                   onPressed: _processingAction ? null : _deleteDraft,
                   icon: const Icon(Icons.delete_outline),
-                  label: const Text('Eliminar draft'),
+                  label: const Text('Eliminar borrador'),
                 ),
               ],
             ],
@@ -223,10 +239,15 @@ String _formatDate(DateTime value) {
 
 String _paymentMethodLabel(String value) {
   switch (value) {
-    case 'cash': return 'Efectivo';
-    case 'transfer': return 'Transferencia';
-    case 'card': return 'Tarjeta';
-    case 'current_account': return 'Cuenta corriente';
-    default: return value;
+    case 'cash':
+      return 'Efectivo';
+    case 'transfer':
+      return 'Transferencia';
+    case 'card':
+      return 'Tarjeta';
+    case 'current_account':
+      return 'Cuenta corriente';
+    default:
+      return value;
   }
 }

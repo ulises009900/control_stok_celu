@@ -212,15 +212,23 @@ class DriftCashboxRepository implements CashboxRepository {
   @override
   Future<List<CashSessionSummary>> listSessions({
     String? deviceId,
-    int limit = 50,
+    String? employeeSearch,
+    DateTime? from,
+    DateTime? to,
+    int? limit = 50,
   }) async {
     final query = _db.select(_db.cashSessions);
     if (deviceId != null) {
       query.where((t) => t.deviceId.equals(deviceId));
     }
-    query
-      ..orderBy([(t) => OrderingTerm.desc(t.openedAt)])
-      ..limit(limit);
+    if (employeeSearch != null && employeeSearch.trim().isNotEmpty) {
+      final term = '%${employeeSearch.trim()}%';
+      query.where((t) => t.userName.like(term) | t.userId.like(term));
+    }
+    if (from != null) query.where((t) => t.openedAt.isBiggerOrEqualValue(from.toUtc()));
+    if (to != null) query.where((t) => t.openedAt.isSmallerThanValue(to.toUtc()));
+    query.orderBy([(t) => OrderingTerm.desc(t.openedAt)]);
+    if (limit != null) query.limit(limit);
     final rows = await query.get();
     return rows.map(_mapSummary).toList();
   }

@@ -31,15 +31,23 @@ final cashSessionDetailProvider = FutureProvider.autoDispose
 /// Historial de turnos: el administrador ve los de todos los dispositivos
 /// (una vez sincronizados) para poder controlar la caja de cada
 /// vendedor; un vendedor solo ve los de su propio dispositivo.
+class CashHistoryFilter {
+  const CashHistoryFilter({this.employee, this.from, this.to});
+  final String? employee;
+  final DateTime? from;
+  final DateTime? to;
+}
+
+final cashHistoryFilterProvider = StateProvider.autoDispose<CashHistoryFilter>((ref) => const CashHistoryFilter());
+
 final cashSessionHistoryProvider =
     FutureProvider.autoDispose<List<CashSessionSummary>>((ref) async {
   final isAdmin = ref.watch(isAdminProvider);
   final repo = ref.watch(cashboxRepositoryProvider);
-  if (isAdmin) {
-    return repo.listSessions();
-  }
-  final deviceId = await ref.watch(deviceIdProvider.future);
-  return repo.listSessions(deviceId: deviceId);
+  final filter = ref.watch(cashHistoryFilterProvider);
+  final deviceId = isAdmin ? null : await ref.watch(deviceIdProvider.future);
+  return repo.listSessions(deviceId: deviceId, employeeSearch: filter.employee,
+    from: filter.from, to: filter.to, limit: null);
 });
 
 /// Estadísticas agregadas de caja (todos los dispositivos/usuarios) para el

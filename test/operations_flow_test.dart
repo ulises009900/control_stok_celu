@@ -110,12 +110,12 @@ void main() {
       const ExpenseCategoryUpsertInput(id: 'exp-cat-flow', name: 'Servicios'),
     );
     await repository.createExpense(
-      const ExpenseUpsertInput(
+      ExpenseUpsertInput(
         id: 'exp-flow',
         description: 'Internet',
         categoryId: 'exp-cat-flow',
         amountCents: 500,
-        occurredAt: '2026-08-04',
+        occurredAt: DateTime.now().toIso8601String().substring(0, 10),
         supplierId: 'sup-flow',
       ),
     );

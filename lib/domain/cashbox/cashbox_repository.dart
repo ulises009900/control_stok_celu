@@ -21,7 +21,10 @@ abstract interface class CashboxRepository {
   /// Historial de turnos, más recientes primero.
   Future<List<CashSessionSummary>> listSessions({
     String? deviceId,
-    int limit = 50,
+    String? employeeSearch,
+    DateTime? from,
+    DateTime? to,
+    int? limit = 50,
   });
 
   /// Estadísticas agregadas de caja (todos los dispositivos) para un

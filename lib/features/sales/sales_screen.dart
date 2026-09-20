@@ -1,3 +1,4 @@
+import 'package:control_stok_celu/features/sales/sale_ticket.dart';
 import 'dart:async';
 
 import 'package:control_stok_celu/data/providers/app_providers.dart';
@@ -78,9 +79,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                       DropdownMenuItem(
                           value: SaleStatusFilter.all, child: Text('Todos')),
                       DropdownMenuItem(
-                          value: SaleStatusFilter.draft, child: Text('Draft')),
+                          value: SaleStatusFilter.draft,
+                          child: Text('Borradores')),
                       DropdownMenuItem(
-                          value: SaleStatusFilter.sold, child: Text('Sold')),
+                          value: SaleStatusFilter.sold,
+                          child: Text('Confirmadas')),
                     ],
                     onChanged: (value) {
                       if (value != null) {
@@ -202,6 +205,33 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
               ),
             ),
           ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(children: [
+              for (final entry in const {
+                SaleStatusFilter.sold: 'Confirmadas',
+                SaleStatusFilter.draft: 'Borradores',
+                SaleStatusFilter.all: 'Todas',
+              }.entries)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(entry.value),
+                    selected: state.query.status == entry.key,
+                    onSelected: (_) => ref
+                        .read(salesStateProvider.notifier)
+                        .setStatus(entry.key),
+                  ),
+                ),
+            ]),
+          ),
+          if (state.query.status == SaleStatusFilter.draft)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text(
+                  'Pendientes de confirmar · Todas las fechas · Última modificación primero'),
+            ),
           if (state.isSearching)
             const Padding(
               padding: EdgeInsets.only(bottom: 8),
@@ -217,6 +247,11 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   Text('Buscando...'),
                 ],
               ),
+            ),
+          if (state.errorMessage != null && state.items.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(state.errorMessage!),
             ),
           Expanded(child: _buildContent(state)),
         ],
@@ -261,7 +296,9 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
           padding: const EdgeInsets.all(24),
           child: Text(
             (state.query.search ?? '').trim().isEmpty
-                ? 'No hay ventas para mostrar.'
+                ? (state.query.status == SaleStatusFilter.draft
+                    ? 'No hay borradores pendientes.'
+                    : 'No hay ventas para mostrar.')
                 : 'No encontramos ventas con esa búsqueda.',
             textAlign: TextAlign.center,
           ),
@@ -272,21 +309,30 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
     return RefreshIndicator(
       onRefresh: () => ref.read(salesStateProvider.notifier).load(),
       child: ListView.separated(
-        itemCount: state.items.length,
+        itemCount: state.items.length + (state.hasMore ? 1 : 0),
+        padding: const EdgeInsets.only(bottom: 88),
         separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, index) {
+          if (index == state.items.length) {
+            return TextButton(
+              onPressed: state.isLoadingMore
+                  ? null
+                  : () => ref.read(salesStateProvider.notifier).loadMore(),
+              child: Text(state.isLoadingMore ? 'Cargando...' : 'Cargar más'),
+            );
+          }
           final sale = state.items[index];
           return ListTile(
             title: Text(sale.customerName ?? 'Sin cliente'),
             subtitle: Text(
-              '${sale.id} · ${sale.status} · ${_formatDate(sale.confirmedAt ?? sale.createdAt)}\n'
+              '${sale.id} · ${saleStatusLabel(sale.status)} · ${_formatDate(sale.status == 'draft' ? (sale.updatedAt ?? sale.createdAt) : (sale.confirmedAt ?? sale.createdAt))}\n'
               '${sale.productCount} productos · ${sale.unitsCount} unidades',
             ),
+            leading: Icon(
+                sale.status == 'draft' ? Icons.edit_note : Icons.receipt_long),
             trailing: Text(_formatMoney(sale.totalCents)),
             onTap: () => context.push('/sales/${sale.id}').then((value) {
-              if (value == true) {
-                ref.read(salesStateProvider.notifier).load();
-              }
+              ref.read(salesStateProvider.notifier).load();
             }),
           );
         },

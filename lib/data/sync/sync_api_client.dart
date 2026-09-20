@@ -143,6 +143,21 @@ class SyncApiClient {
     return data['applied'] as int? ?? 0;
   }
 
+  Future<int> getRemitoNumber(String saleId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/sync/sales/remito-number'),
+      headers: _headers,
+      body: jsonEncode({'saleId': saleId}),
+    ).timeout(const Duration(seconds: 20));
+    _checkOk(response);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final number = int.tryParse('${data['number']}');
+    if (number == null || number < 1) {
+      throw SyncApiException('El servidor devolvió un número de remito inválido.');
+    }
+    return number;
+  }
+
   Future<List<AppUser>> getUsers() async {
     final uri = Uri.parse('$baseUrl/users');
     final response = await http.get(uri, headers: _headers);

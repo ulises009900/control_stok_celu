@@ -12,6 +12,38 @@ const MAX_LIMIT = 500;
 /// de la venta). Se sincronizan siempre completas junto a su venta padre.
 const router = express.Router();
 
+router.post('/remito-number', async (req, res, next) => {
+  const saleId = req.body?.saleId;
+  if (typeof saleId !== 'string' || !saleId.trim() || saleId.length > 200) {
+    return res.status(400).json({ error: 'saleId inválido' });
+  }
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+    // Serialize allocations across every device; retries don't consume numbers.
+    await client.query('SELECT id FROM remito_counter WHERE id = 1 FOR UPDATE');
+    const existing = await client.query(
+      'SELECT number FROM remito_numbers WHERE sale_id = $1', [saleId],
+    );
+    let number = existing.rows[0]?.number;
+    if (number == null) {
+      const allocated = await client.query(
+        'UPDATE remito_counter SET last_number = last_number + 1 WHERE id = 1 RETURNING last_number',
+      );
+      number = allocated.rows[0].last_number;
+      await client.query('INSERT INTO remito_numbers(sale_id, number) VALUES ($1, $2)', [saleId, number]);
+    }
+    await client.query('COMMIT');
+    res.json({ number });
+  } catch (err) {
+    if (client) await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client?.release();
+  }
+});
+
 router.get('/pull', async (req, res, next) => {
   try {
     const since = req.query.since || DEFAULT_SINCE;

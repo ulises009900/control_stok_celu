@@ -772,7 +772,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.save_outlined),
-                label: const Text('Guardar draft'),
+                label: const Text('Guardar borrador'),
               ),
               const SizedBox(height: 8),
               FilledButton.icon(

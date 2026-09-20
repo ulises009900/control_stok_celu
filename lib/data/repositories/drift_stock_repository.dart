@@ -17,6 +17,27 @@ class DriftStockRepository implements StockRepository {
   static const String _statusDeleted = 'deleted';
 
   @override
+  Future<int> expireReservations(DateTime now) async {
+    return _db.transaction(() async {
+      final rows = await _db.customSelect(
+        "SELECT id FROM reservations WHERE status IN ('draft', 'reserved') AND COALESCE(confirmed_at, created_at) <= ?",
+        variables: [Variable<DateTime>(now.toUtc().subtract(const Duration(days: 14)))],
+      ).get();
+      for (final row in rows) {
+        final id = row.read<String>('id');
+        await deleteReservation(id, now);
+        await _db.customStatement(
+          "UPDATE sales SET status = 'deleted', updated_at = ? WHERE reservation_id = ? AND status = 'reserved'",
+          [now.toUtc().millisecondsSinceEpoch ~/ 1000, id],
+        );
+        await _insertAudit(entityType: 'reservation', entityId: id,
+          action: 'reservation_expired', before: {}, after: {'lifetime_days': 14}, createdAt: now.toUtc());
+      }
+      return rows.length;
+    });
+  }
+
+  @override
   Future<void> createProduct(CreateProductInput input) async {
     final now = DateTime.now().toUtc();
     await _db.into(_db.products).insert(
@@ -1387,11 +1408,11 @@ class DriftStockRepository implements StockRepository {
     }
     final start = _dashboardPeriodStart(query.period, query.from, query.to);
     final end = _dashboardPeriodEnd(query.period, query.from, query.to);
-    if (start != null) {
+    if (query.status != SaleStatusFilter.draft && start != null) {
       where.add('COALESCE(s.confirmed_at, s.created_at) >= ?');
       values.add(start.toUtc());
     }
-    if (end != null) {
+    if (query.status != SaleStatusFilter.draft && end != null) {
       where.add('COALESCE(s.confirmed_at, s.created_at) < ?');
       values.add(end.toUtc());
     }
@@ -1419,7 +1440,7 @@ class DriftStockRepository implements StockRepository {
       LEFT JOIN sale_items si ON si.sale_id = s.id
       WHERE ${where.join(' AND ')}
       GROUP BY s.id, c.name
-      ORDER BY COALESCE(s.confirmed_at, s.created_at) DESC, s.created_at DESC
+      ORDER BY ${query.status == SaleStatusFilter.draft ? 's.updated_at' : 'COALESCE(s.confirmed_at, s.created_at)'} DESC, s.created_at DESC, s.id DESC
       LIMIT ? OFFSET ?
       ''',
       variables: <Variable<Object>>[
@@ -1519,6 +1540,7 @@ class DriftStockRepository implements StockRepository {
   @override
   Future<List<ReservationListItem>> listReservations(
       ReservationQuery query) async {
+    await expireReservations(DateTime.now().toUtc());
     final where = <String>['1=1'];
     final values = <Object>[];
     final normalized = query.search?.trim().toLowerCase();
@@ -1590,6 +1612,7 @@ class DriftStockRepository implements StockRepository {
   @override
   Future<ReservationDetailView> getReservationDetail(
       String reservationId) async {
+    await expireReservations(DateTime.now().toUtc());
     final reservationRow = await _db.customSelect(
       '''
       SELECT
@@ -2728,6 +2751,7 @@ class DriftStockRepository implements StockRepository {
 
   @override
   Future<void> confirmReservationSale(ConfirmSaleInput input) async {
+    await expireReservations(DateTime.now().toUtc());
     if (input.reservationId == null) {
       throw ValidationException(
           'La confirmación de venta requiere una reserva previa.');

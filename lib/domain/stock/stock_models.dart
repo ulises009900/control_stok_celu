@@ -992,9 +992,9 @@ enum ReservationStatusFilter {
 class ReservationQuery {
   const ReservationQuery({
     this.search,
-    this.status = ReservationStatusFilter.all,
+    this.status = ReservationStatusFilter.reserved,
     this.customerId,
-    this.period = DashboardPeriod.thisMonth,
+    this.period = DashboardPeriod.custom,
     this.from,
     this.to,
     this.limit = 80,

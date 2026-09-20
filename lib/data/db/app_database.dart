@@ -585,7 +585,17 @@ class AuditLogs extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase({QueryExecutor? executor}) : super(executor ?? _openConnection());
 
-  static const int currentSchemaVersion = 7;
+  static const int currentSchemaVersion = 8;
+
+  Future<void> _createRemitoNumbers() => customStatement('''
+    CREATE TABLE remito_numbers (
+      scope TEXT NOT NULL,
+      sale_id TEXT NOT NULL,
+      number INTEGER NOT NULL CHECK (number > 0),
+      PRIMARY KEY (scope, sale_id),
+      UNIQUE (scope, number)
+    )
+  ''');
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -677,6 +687,7 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
+          await _createRemitoNumbers();
           await customStatement("ALTER TABLE sales ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'cash';");
           await customStatement('ALTER TABLE sales ADD COLUMN seller_id TEXT;');
           await customStatement('ALTER TABLE sales ADD COLUMN seller_name TEXT;');
@@ -725,6 +736,9 @@ class AppDatabase extends _$AppDatabase {
           ''');
         },
         onUpgrade: (Migrator m, int from, int to) async {
+          if (from < 8) {
+            await _createRemitoNumbers();
+          }
           if (from < 2) {
             await customStatement(
               'ALTER TABLE suppliers ADD COLUMN legal_name TEXT;',

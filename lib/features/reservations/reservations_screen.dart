@@ -51,9 +51,11 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
     final state = ref.read(reservationsStateProvider);
     ReservationStatusFilter status = state.query.status;
     String? customerId = state.query.customerId;
+    DateTimeRange? dates = state.query.from == null || state.query.to == null ? null : DateTimeRange(start: state.query.from!.toLocal(), end: state.query.to!.toLocal());
 
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (context) {
         return Padding(
           padding: const EdgeInsets.all(16),
@@ -71,19 +73,19 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                           child: Text('Todos')),
                       DropdownMenuItem(
                           value: ReservationStatusFilter.draft,
-                          child: Text('Draft')),
+                          child: Text('Borradores')),
                       DropdownMenuItem(
                           value: ReservationStatusFilter.reserved,
-                          child: Text('Reserved')),
+                          child: Text('Activas')),
                       DropdownMenuItem(
                           value: ReservationStatusFilter.sold,
-                          child: Text('Sold')),
+                          child: Text('Vendidas')),
                       DropdownMenuItem(
                           value: ReservationStatusFilter.cancelled,
-                          child: Text('Cancelled')),
+                          child: Text('Canceladas')),
                       DropdownMenuItem(
                           value: ReservationStatusFilter.deleted,
-                          child: Text('Deleted')),
+                          child: Text('Eliminadas')),
                     ],
                     onChanged: (value) {
                       if (value != null) {
@@ -109,13 +111,22 @@ class _ReservationsScreenState extends ConsumerState<ReservationsScreen> {
                         setModalState(() => customerId = value),
                   ),
                   const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.date_range),
+                    label: Text(dates == null ? 'Filtrar por fechas' : '${_formatDate(dates!.start)} - ${_formatDate(dates!.end)}'),
+                    onPressed: () async {
+                      final range = await showDateRangePicker(context: context, firstDate: DateTime(2000), lastDate: DateTime.now().add(const Duration(days: 365)), initialDateRange: dates);
+                      if (range != null) setModalState(() => dates = range);
+                    },
+                  ),
+                  if (dates != null) TextButton(onPressed: () => setModalState(() => dates = null), child: const Text('Todas las fechas')),
+                  const SizedBox(height: 12),
                   FilledButton(
                     onPressed: () async {
                       Navigator.of(context).pop();
                       final notifier =
                           ref.read(reservationsStateProvider.notifier);
-                      await notifier.setCustomer(customerId);
-                      await notifier.setStatus(status);
+                      await notifier.setFilters(status: status, customerId: customerId, from: dates?.start, to: dates?.end);
                     },
                     child: const Text('Aplicar'),
                   ),

@@ -44,6 +44,14 @@ class ReservationsNotifier extends StateNotifier<ReservationsState> {
 
   final Ref _ref;
 
+  Future<void> setFilters({required ReservationStatusFilter status, String? customerId, DateTime? from, DateTime? to}) async {
+    state = state.copyWith(query: ReservationQuery(
+      search: state.query.search, status: status, customerId: customerId,
+      period: DashboardPeriod.custom, from: from, to: to,
+    ));
+    await load();
+  }
+
   Future<void> load() async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {

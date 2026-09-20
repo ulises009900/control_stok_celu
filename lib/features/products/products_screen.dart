@@ -1,3 +1,4 @@
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'dart:async';
 
 import 'package:control_stok_celu/data/providers/app_providers.dart';
@@ -26,6 +27,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   bool _hasMore = true;
   String? _error;
   bool _searching = false;
+  int _loadRequest = 0;
 
   ProductStatusFilter _status = ProductStatusFilter.active;
   ProductStockFilter _stock = ProductStockFilter.all;
@@ -54,13 +56,15 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   }
 
   Future<void> _load({required bool reset}) async {
-    if (_loadingMore || (!_hasMore && !reset)) {
+    if (!reset && (_loading || _loadingMore || !_hasMore)) {
       return;
     }
+    final request = ++_loadRequest;
 
     if (reset) {
       setState(() {
         _loading = true;
+        _loadingMore = false;
         _error = null;
         _hasMore = true;
       });
@@ -94,21 +98,25 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         ),
       );
 
+      if (!mounted || request != _loadRequest) return;
       setState(() {
         _items = <ProductSummaryItem>[...currentItems, ...result];
         _hasMore = result.length == 40;
         _error = null;
       });
     } catch (e) {
+      if (!mounted || request != _loadRequest) return;
       setState(() {
         _error = 'No pudimos cargar productos. $e';
       });
     } finally {
-      setState(() {
-        _loading = false;
-        _loadingMore = false;
-        _searching = false;
-      });
+      if (mounted && request == _loadRequest) {
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+          _searching = false;
+        });
+      }
     }
   }
 
@@ -130,6 +138,100 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     _debounce = Timer(const Duration(milliseconds: 250), () {
       unawaited(_load(reset: true));
     });
+  }
+
+  Future<void> _scanBarcodeWithCamera() async {
+    final controller = MobileScannerController(
+      formats: const <BarcodeFormat>[
+        BarcodeFormat.ean13,
+        BarcodeFormat.ean8,
+        BarcodeFormat.code128,
+        BarcodeFormat.code39,
+        BarcodeFormat.upcA,
+        BarcodeFormat.upcE,
+        BarcodeFormat.qrCode
+      ],
+    );
+    var handled = false;
+
+    final scannedValue = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheetContext).size.height * 0.72,
+            child: Column(
+              children: <Widget>[
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Text(
+                    'Apunta la cámara al código de barras.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Expanded(
+                  child: MobileScanner(
+                    controller: controller,
+                    errorBuilder: (context, error) => const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                            'No se pudo abrir la cámara. Revisá el permiso de cámara en los ajustes o buscá por código.',
+                            textAlign: TextAlign.center),
+                      ),
+                    ),
+                    onDetect: (capture) {
+                      if (handled) {
+                        return;
+                      }
+                      final raw = capture.barcodes
+                          .map((barcode) => barcode.rawValue?.trim() ?? '')
+                          .firstWhere(
+                            (value) => value.isNotEmpty,
+                            orElse: () => '',
+                          );
+                      if (raw.isEmpty) {
+                        return;
+                      }
+                      handled = true;
+                      Navigator.of(sheetContext).pop(raw);
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Cancelar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    await controller.dispose();
+
+    if (!mounted || scannedValue == null || scannedValue.isEmpty) {
+      return;
+    }
+    setState(() {
+      _searchController.text = scannedValue;
+      _status = ProductStatusFilter.all;
+      _stock = ProductStockFilter.all;
+      _categoryId = null;
+      _subcategory = null;
+      _offerOnly = false;
+      _clearanceOnly = false;
+      _nearExpiryOnly = false;
+    });
+    _debounce?.cancel();
+    await _load(reset: true);
   }
 
   Future<void> _setActive(ProductSummaryItem item, bool isActive) async {
@@ -367,6 +469,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Productos'),
         actions: <Widget>[
+          IconButton(
+            tooltip: 'Escanear código de barras',
+            onPressed: _scanBarcodeWithCamera,
+            icon: const Icon(Icons.qr_code_scanner),
+          ),
           IconButton(
             tooltip: 'Buscar',
             onPressed: () {

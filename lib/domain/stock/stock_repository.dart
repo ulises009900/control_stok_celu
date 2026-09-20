@@ -34,6 +34,7 @@ abstract interface class StockRepository {
     bool includeInactive = true,
   });
   Future<void> createReservationDraft(CreateReservationDraftInput input);
+  Future<int> expireReservations(DateTime now);
   Future<void> saveReservationDraft(CreateReservationDraftInput input);
   Future<void> saveSaleDraft(SaleDraftUpsertInput input);
   Future<void> deleteSaleDraft(String saleId);

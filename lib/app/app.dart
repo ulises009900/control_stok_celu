@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:control_stok_celu/app/router.dart';
 import 'package:control_stok_celu/data/providers/app_providers.dart';
 import 'package:control_stok_celu/data/sync/sync_providers.dart';
@@ -13,14 +14,31 @@ class StockApp extends ConsumerStatefulWidget {
 
 class _StockAppState extends ConsumerState<StockApp>
     with WidgetsBindingObserver {
+  Timer? _expiryTimer;
+  bool _expiring = false;
+  Future<void> _expireReservations() async {
+    if (_expiring || !mounted) return;
+    _expiring = true;
+    try {
+      await ref.read(stockRepositoryProvider).expireReservations(DateTime.now().toUtc());
+    } catch (error) {
+      debugPrint('No se pudieron vencer reservas: $error');
+    } finally {
+      _expiring = false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _expireReservations());
+    _expiryTimer = Timer.periodic(const Duration(minutes: 1), (_) => _expireReservations());
   }
 
   @override
   void dispose() {
+    _expiryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -31,6 +49,7 @@ class _StockAppState extends ConsumerState<StockApp>
     // periódico automático (ver kAutoSyncInterval), para que los datos de
     // todos los usuarios (caja, ventas, etc.) estén al día lo antes posible.
     if (state == AppLifecycleState.resumed) {
+      _expireReservations();
       ref.read(syncControllerProvider.notifier).syncNow(silent: true);
     }
   }

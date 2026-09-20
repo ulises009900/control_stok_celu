@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:control_stok_celu/core/widgets/barcode_scanner_screen.dart';
 
 import 'package:control_stok_celu/domain/stock/stock_models.dart';
 import 'package:control_stok_celu/features/inventory/inventory_providers.dart';
@@ -68,6 +69,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     });
   }
 
+  Future<void> _scanBarcode() async {
+    final code = await Navigator.of(context).push<String>(MaterialPageRoute(
+      builder: (_) => const BarcodeScannerScreen(),
+    ));
+    if (!mounted || code == null) return;
+    _debounce?.cancel();
+    setState(() => _searchController.text = code);
+    await ref.read(inventoryStateProvider.notifier).applyRouteQuery(
+      filter: InventoryFilter.all, search: code,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(inventoryStateProvider);
@@ -76,6 +89,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       appBar: AppBar(
         leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Inventario'),
+        actions: [IconButton(
+          tooltip: 'Escanear código de barras',
+          onPressed: _scanBarcode,
+          icon: const Icon(Icons.qr_code_scanner),
+        )],
       ),
       body: Column(
         children: <Widget>[
